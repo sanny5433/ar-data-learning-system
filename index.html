@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR 輔助商用數據分析學習系統</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        .ar-container {
+            width: 100%;
+            height: 38vh;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background-color: #2c3e50;
+        }
+        .task-content {
+            max-height: 45vh;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 首頁 -->
+        <div id="screen-home" class="screen active">
+            <h1>AR 輔助商用數據分析學習系統</h1>
+            <p class="subtitle">歡迎參與本研究！請輸入您的實驗場次與受試者編號。</p>
+            
+            <div class="input-group">
+                <label for="sessionInput">實驗場次 (Session / 梯次)</label>
+                <input type="text" id="sessionInput" placeholder="例如：A 或 Morning" autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="participantInput">受試者編號 (Participant ID)</label>
+                <input type="text" id="participantInput" placeholder="例如：001" autocomplete="off">
+            </div>
+
+            <button class="primary-btn" onclick="startSession()">開始學習並進入前測</button>
+
+            <div style="margin-top: 40px; text-align: center; opacity: 0.6;">
+                <button style="background: none; border: none; color: #bdc3c7; text-decoration: underline; cursor: pointer; font-size: 11px;" onclick="openAdminLogin()">管理員登入</button>
+            </div>
+        </div>
+
+        <!-- 說明頁 -->
+        <div id="screen-intro" class="screen">
+            <h2>系統說明與研究須知</h2>
+            <p class="content-text" id="session-info-text"></p>
+            <button class="primary-btn" onclick="goToPreTest()">下一步：開始前測</button>
+        </div>
+
+        <!-- 前測 -->
+        <div id="screen-pretest" class="screen">
+            <div class="progress-badge" id="pretest-progress">前測第 1 題 / 共 5 題</div>
+            <h2 id="pretest-question-title">載入中...</h2>
+            <div class="options-container" id="pretest-options"></div>
+            <div class="button-row">
+                <button class="secondary-btn" id="pretest-prev-btn" onclick="prevPreTestQuestion()" style="display: none;">上一題</button>
+                <button class="primary-btn" id="pretest-next-btn" onclick="nextPreTestQuestion()">下一題</button>
+            </div>
+        </div>
+
+        <!-- 前測結果 -->
+        <div id="screen-pretest-result" class="screen">
+            <h2>前測作答結果與結算</h2>
+            <div id="pretest-score-summary" class="content-text" style="margin-bottom: 20px;"></div>
+            <div id="pretest-wrong-review" class="review-box"></div>
+            <button class="primary-btn" onclick="goToTutorial()" style="margin-top: 20px;">進入基礎教學</button>
+        </div>
+
+        <!-- 基礎教學（完整保留 10 頁詳細版） -->
+        <div id="screen-tutorial" class="screen">
+            <div class="progress-badge" id="tutorial-progress">教學單元 1 / 10</div>
+            <h2 id="tutorial-title" style="margin-bottom: 12px; font-size: 18px;">標題載入中...</h2>
+            <div class="content-text" id="tutorial-content" style="text-align: left; max-height: 320px; overflow-y: auto; padding: 0 5px; margin-bottom: 15px; font-size: 13px; line-height: 1.6;"></div>
+            <div class="button-row">
+                <button class="secondary-btn" id="tutorial-prev-btn" onclick="prevTutorialPage()" style="display: none;">上一頁</button>
+                <button class="primary-btn" id="tutorial-next-btn" onclick="nextTutorialPage()">下一頁</button>
+            </div>
+        </div>
+
+        <!-- 手機 AR 掃描配對頁（教學結束後顯示） -->
+        <div id="screen-ar-pairing" class="screen">
+            <h2>📱 準備進入 AR 實體卡片探索</h2>
+            <div class="content-text" style="text-align: center; padding: 5px 0;">
+                <p style="margin-bottom: 8px; font-size: 13px; color: #2c3e50;">請使用<strong>手機 (iPhone 請務必使用 Safari)</strong>掃描下方 QR Code，以開啟專屬 AR 鏡頭：</p>
+                <div id="qrcode-container" style="background: white; padding: 10px; display: inline-block; border-radius: 10px; border: 2px solid #bdc3c7; margin-bottom: 8px;"></div>
+                <p style="font-size: 11px; color: #e67e22; font-weight: bold;">💡 掃描後手機將作為 AR 掃描器，電腦端將同步顯示進度！</p>
+            </div>
+            <button class="primary-btn" onclick="startTask1()" style="margin-top: 5px; font-size: 12px; padding: 6px;">[電腦端測試] 直接在電腦檢視任務</button>
+        </div>
+
+        <!-- Task 1 -->
+        <div id="screen-task1" class="screen">
+            <div class="progress-badge" style="background-color: #27ae60;">Task 1 任務與 WebAR 探索 (支援度分析)</div>
+            <div class="ar-container">
+                <a-scene id="ar-scene-1" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+                    <a-entity mindar-image-target="targetIndex: 0" id="target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 1" id="target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 2" id="target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 3" id="target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 4" id="target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                </a-scene>
+            </div>
+            <div class="task-content">
+                <div id="ar-scan-result-1" style="margin-bottom: 6px; padding: 6px; background: #e8f8f0; border-radius: 6px; font-size: 12px; color: #27ae60; border: 1px dashed #27ae60; text-align: left;">📱 請將相機對準實體卡片以獲取資料... (已掃描 0/5 張)</div>
+                <div style="background: #fdfefe; border: 1px solid #dcdde1; padding: 8px; border-radius: 8px; margin-bottom: 8px; text-align: left;">
+                    <p style="font-weight: bold; font-size: 13px; color: #2c3e50; margin-bottom: 3px;">📝 我的資料紀錄區：</p>
+                    <textarea id="task1-record-text" placeholder="在此處整理您從卡片中發現的資料..." style="width: 100%; height: 38px; padding: 5px; font-size: 12px; border: 1px solid #dcdde1; border-radius: 4px; resize: vertical;"></textarea>
+                    <button class="secondary-btn" style="padding: 3px 8px; font-size: 11px; margin-top: 3px; background-color: #3498db; color: white;" onclick="saveTaskRecord('task1')">💾 儲存紀錄</button>
+                </div>
+                <div id="task1-lock-banner" style="background: #e67e22; color: white; padding: 6px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 8px;">🔒 尚未完成所有卡片掃描 (已掃描 0/5 張)</div>
+                <div id="task1-questions-area" style="opacity: 0.3; pointer-events: none; transition: 0.3s;">
+                    <div id="task1-q-list" style="max-height: 140px; overflow-y: auto; text-align: left; padding-right: 5px; margin-bottom: 8px;"></div>
+                    <button class="primary-btn" onclick="submitTaskQuestions('task1')" style="font-size: 13px; padding: 8px;">提交 Task 1 所有答案</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task 2 -->
+        <div id="screen-task2" class="screen">
+            <div class="progress-badge" style="background-color: #2980b9;">Task 2 任務與 WebAR 探索 (信心度分析)</div>
+            <div class="ar-container">
+                <a-scene id="ar-scene-2" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+                    <a-entity mindar-image-target="targetIndex: 5" id="target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 6" id="target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 7" id="target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 8" id="target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 9" id="target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                </a-scene>
+            </div>
+            <div class="task-content">
+                <div id="ar-scan-result-2" style="margin-bottom: 6px; padding: 6px; background: #e8f4f8; border-radius: 6px; font-size: 12px; color: #2980b9; border: 1px dashed #2980b9; text-align: left;">📱 請將相機對準實體卡片以獲取資料... (已掃描 0/5 張)</div>
+                <div style="background: #fdfefe; border: 1px solid #dcdde1; padding: 8px; border-radius: 8px; margin-bottom: 8px; text-align: left;">
+                    <p style="font-weight: bold; font-size: 13px; color: #2c3e50; margin-bottom: 3px;">📝 我的資料紀錄區：</p>
+                    <textarea id="task2-record-text" placeholder="在此處記錄購買次數與條件機率..." style="width: 100%; height: 38px; padding: 5px; font-size: 12px; border: 1px solid #dcdde1; border-radius: 4px; resize: vertical;"></textarea>
+                    <button class="secondary-btn" style="padding: 3px 8px; font-size: 11px; margin-top: 3px; background-color: #3498db; color: white;" onclick="saveTaskRecord('task2')">💾 儲存紀錄</button>
+                </div>
+                <div id="task2-lock-banner" style="background: #e67e22; color: white; padding: 6px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 8px;">🔒 尚未完成所有卡片掃描 (已掃描 0/5 張)</div>
+                <div id="task2-questions-area" style="opacity: 0.3; pointer-events: none; transition: 0.3s;">
+                    <div id="task2-q-list" style="max-height: 140px; overflow-y: auto; text-align: left; padding-right: 5px; margin-bottom: 8px;"></div>
+                    <button class="primary-btn" onclick="submitTaskQuestions('task2')" style="font-size: 13px; padding: 8px;">提交 Task 2 所有答案</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task 3 -->
+        <div id="screen-task3" class="screen">
+            <div class="progress-badge" style="background-color: #8e44ad;">Task 3 任務與 WebAR 探索 (資料導向決策)</div>
+            <div class="ar-container">
+                <a-scene id="ar-scene-3" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+                    <a-entity mindar-image-target="targetIndex: 10" id="target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 11" id="target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 12" id="target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 13" id="target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 14" id="target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                </a-scene>
+            </div>
+            <div class="task-content">
+                <div id="ar-scan-result-3" style="margin-bottom: 6px; padding: 6px; background: #f4ecf7; border-radius: 6px; font-size: 12px; color: #8e44ad; border: 1px dashed #8e44ad; text-align: left;">📱 請將相機對準實體卡片以獲取資料... (已掃描 0/5 張)</div>
+                <div style="background: #fdfefe; border: 1px solid #dcdde1; padding: 8px; border-radius: 8px; margin-bottom: 8px; text-align: left;">
+                    <p style="font-weight: bold; font-size: 13px; color: #2c3e50; margin-bottom: 3px;">📝 我的資料紀錄區：</p>
+                    <textarea id="task3-record-text" placeholder="在此處記錄趨勢與庫存數據以便做出決策..." style="width: 100%; height: 38px; padding: 5px; font-size: 12px; border: 1px solid #dcdde1; border-radius: 4px; resize: vertical;"></textarea>
+                    <button class="secondary-btn" style="padding: 3px 8px; font-size: 11px; margin-top: 3px; background-color: #3498db; color: white;" onclick="saveTaskRecord('task3')">💾 儲存紀錄</button>
+                </div>
+                <div id="task3-lock-banner" style="background: #e67e22; color: white; padding: 6px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 8px;">🔒 尚未完成所有卡片掃描 (已掃描 0/5 張)</div>
+                <div id="task3-questions-area" style="opacity: 0.3; pointer-events: none; transition: 0.3s;">
+                    <div id="task3-q-list" style="max-height: 140px; overflow-y: auto; text-align: left; padding-right: 5px; margin-bottom: 8px;"></div>
+                    <button class="primary-btn" onclick="submitTaskQuestions('task3')" style="font-size: 13px; padding: 8px;">提交 Task 3 所有決策答案</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 後測 -->
+        <div id="screen-posttest" class="screen">
+            <div class="progress-badge" id="posttest-progress" style="background-color: #e67e22;">後測第 1 題 / 共 5 題</div>
+            <h2 id="posttest-question-title">載入中...</h2>
+            <div class="options-container" id="posttest-options"></div>
+            <button class="primary-btn" id="posttest-next-btn" onclick="nextPostTestQuestion()">下一題</button>
+        </div>
+
+        <!-- 後測結果 -->
+        <div id="screen-posttest-result" class="screen">
+            <h2>後測作答結果與學習成效結算</h2>
+            <div id="posttest-score-summary" class="content-text" style="margin-bottom: 20px;"></div>
+            <div id="posttest-wrong-review" class="review-box"></div>
+            <button class="primary-btn" onclick="goToQuestionnaire()" style="margin-top: 20px;">進行問卷填寫</button>
+        </div>
+
+        <!-- 問卷 -->
+        <div id="screen-questionnaire" class="screen">
+            <h2>使用者回饋問卷調查</h2>
+            <div class="content-text" style="text-align: center; padding: 10px 0; margin-bottom: 20px;">
+                <p style="margin-bottom: 15px; font-size: 16px; color: #2c3e50;">請使用手機掃描下方 <strong>QR Code</strong> 填寫本次實驗的回饋問卷：</p>
+                <div style="width: 180px; height: 180px; background: #ecf0f1; border: 2px dashed #bdc3c7; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; border-radius: 10px;">
+                    <span style="color: #7f8c8d; font-size: 14px; font-weight: bold;">[ QR Code 圖片 ]</span>
+                </div>
+                <p style="font-size: 13px; color: #7f8c8d;">(完成手機問卷填寫後，請點擊下方按鈕結束實驗)</p>
+            </div>
+            <button class="primary-btn" onclick="finishExperiment()">我已完成問卷填寫，結束實驗</button>
+        </div>
+
+        <!-- 結束 -->
+        <div id="screen-complete" class="screen">
+            <h1>🎉 實驗圓滿結束！</h1>
+            <p class="content-text" style="text-align: center;">感謝您的熱情參與！您的所有學習歷程、AR探索行為與研究數據已安全儲存至雲端資料庫。</p>
+        </div>
+
+        <!-- 管理員登入 -->
+        <div id="screen-admin-login" class="screen">
+            <h2>🔐 研究者後台登入</h2>
+            <div class="input-group" style="text-align: left;">
+                <label for="adminPassword">管理者密碼</label>
+                <input type="text" id="adminPassword" placeholder="請輸入後台密碼" autocomplete="new-password" style="-webkit-text-security: disc;">
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; border: 1px solid #dfe6e9;">
+                <p style="font-weight: bold; color: #2c3e50; margin-bottom: 10px; font-size: 14px;">請完成下方圖示安全驗證：</p>
+                <div id="hamster-options" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"></div>
+            </div>
+            <button class="primary-btn" onclick="verifyAdminLogin()">確認登入</button>
+            <button class="secondary-btn" style="margin-top: 10px;" onclick="goToScreen('screen-home')">返回首頁</button>
+        </div>
+
+        <!-- 研究者詳細後台儀表板（完整保留詳細名單與紀錄檢視面板） -->
+        <div id="screen-admin-dashboard" class="screen">
+            <h2>📊 研究數據儀表板與管理後台</h2>
+            <div class="content-text" style="text-align: left; max-height: 380px; overflow-y: auto; padding: 0 5px; margin-bottom: 15px; font-size: 13px;">
+                <div id="admin-summary-stats" style="background: #e8f4f8; padding: 12px; border-radius: 8px; margin-bottom: 15px; line-height: 1.6;">
+                    載入統計數據中...
+                </div>
+                <h3>受試者即時數據列表（含詳細任務與筆記紀錄）</h3>
+                <div id="admin-participants-table-container" style="overflow-x: auto; margin-top: 8px;">
+                    載入名單中...
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="primary-btn" onclick="exportDataToCSV()" style="background-color: #27ae60; flex: 1; min-width: 150px;">📥 一鍵匯出 CSV 試算表</button>
+                <button class="secondary-btn" onclick="goToScreen('screen-home')" style="flex: 1; min-width: 100px;">返回首頁</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
