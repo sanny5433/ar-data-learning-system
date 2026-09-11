@@ -17,7 +17,6 @@ function goToScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => screen.classList.remove('active'));
     
-    // 關閉所有 AR 鏡頭
     ['1', '2', '3', 'mobile'].forEach(i => {
         const sceneEl = document.getElementById(i === 'mobile' ? 'ar-scene-mobile' : `ar-scene-${i}`);
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
@@ -83,7 +82,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (mode === 'ar') {
             setTimeout(() => {
-                startMobileAR(1); // 預設從 Task 1 開始掃描
+                startMobileAR(1);
             }, 400);
         }
     }
@@ -137,11 +136,23 @@ window.startSession = async function() {
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
-    document.getElementById('mobile-scan-status').innerHTML = `📱 正在啟動 Task ${taskNum} 鏡頭，請對準實體卡片...`;
+    document.getElementById('mobile-scan-status').innerHTML = `📱 正在準備 Task ${taskNum} 鏡頭，請點擊下方橘色按鈕授權相機！`;
+}
+
+// 強制呼叫相機權限並啟動 MindAR
+window.forceStartMobileCamera = function() {
+    const triggerBox = document.getElementById('camera-trigger-box');
+    if (triggerBox) triggerBox.style.display = 'none';
+
+    document.getElementById('mobile-scan-status').innerHTML = `📸 相機權限已獲取，正在掃描實體卡片...`;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
     if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-        sceneEl.systems["mindar-image-system"].start();
+        try {
+            sceneEl.systems["mindar-image-system"].start();
+        } catch (e) {
+            console.error("啟動相機失敗:", e);
+        }
     }
 }
 
@@ -149,7 +160,7 @@ window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-// 完整教學與前測邏輯保持不變
+// 【完整保留 10 頁詳細版】基礎教學內容
 const tutorialPages = [
     { title: "1. 什麼是關聯規則（Association Rules）？", content: `<p>關聯規則是一種用來發掘不同商品、事件或行為之間關聯性的方法。</p><p>簡單來說，就是從大量資料中找出：<strong><span>「哪些東西經常一起出現？」</span></strong>例如在超市購物籃中，顧客買了麵包是否常順便買牛奶？這就是關聯分析的核心。</p>` },
     { title: "2. 為什麼需要找「關聯」？", content: `<p>當資料量龐大時，單靠人工無法逐筆檢視交易明細。透過數據分析，企業能精準掌握顧客的「隱性需求」與「共同購買行為」，進而優化商品陳列、規劃組合促銷與提升營運效益。</p>` },
@@ -209,7 +220,7 @@ function showARPairingScreen() {
     });
 }
 
-// 手機與電腦端共用的卡片掃描偵測
+// 卡片掃描偵測
 document.addEventListener("DOMContentLoaded", () => {
     for (let i = 0; i < 15; i++) {
         const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
@@ -517,7 +528,7 @@ function renderPreTestResult(score, correctCount, wrongItems) {
     }
 }
 
-// 後測與管理員邏輯保持不導向錯誤
+// 後測與管理員邏輯
 const postTestQuestionsList = [
     { questionId: "post_q1", question: "在關聯規則分析中，『支援度 (Support)』主要用來衡量什麼？", options: ["A. 商品價格的高低", "B. 商品組合在全體交易中出現的頻率", "C. 顧客結帳的速度", "D. 店員補貨的次數"], correctAnswer: "B" },
     { questionId: "post_q2", question: "若商品 A ➔ 商品 B 的信心度 (Confidence) 很高，代表什麼意義？", options: ["A. 買 A 的顧客中，很高比例也會買 B", "B. 所有人都不買 B", "C. A 和 B 毫無關係", "D. B 的成本比 A 高"], correctAnswer: "A" },
