@@ -157,44 +157,138 @@ window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-// 【內容擴充版：完整 10 頁詳細基礎教學】
+// 【完整 10 頁詳細基礎教學內容】
 const tutorialPages = [
-    { 
-        title: "1. 什麼是關聯規則（Association Rules）？", 
-        content: `<p>關聯規則是商用大數據分析中一種非常核心且強大的方法，主要用來發掘不同商品、事件或消費者行為之間隱含的關聯性。</p><p>簡單來說，它就像是一位細心的店長，從成千上萬筆結帳明細中去找出：<strong><span>「哪些商品經常被顧客同時放入同一個購物籃中？」</span></strong>例如：當顧客購買了吐司與麵包時，是否也經常順便購買鮮奶？這種「同現關係」正是關聯分析最想找出的規律。</p>` 
+    {
+        title: "1. 什麼是關聯規則（Association Rules）？",
+        content: `
+            <p>關聯規則是一種用來發掘不同商品、事件或行為之間關聯性的方法。</p>
+            <p>簡單來說，就是從大量資料中找出：<strong><span>「哪些東西經常一起出現？」</span></strong></p>
+            <p>例如：顧客購買麵包時，也經常購買牛奶。這時候我們可以進一步觀察兩種商品之間是否存在穩定的關聯。</p>
+            <hr style="margin: 10px 0; border: none; border-top: 1px solid #e9ecef;">
+            <p><strong>生活中的例子：</strong><br>假設一家便利商店有很多筆交易：</p>
+            <ul style="text-align: left; display: inline-block; margin: 3px 0 6px 15px; line-height: 1.4;">
+                <li>交易 1：麵包、牛奶</li>
+                <li>交易 2：麵包、牛奶、咖啡</li>
+                <li>交易 3：麵包、咖啡</li>
+                <li>交易 4：牛奶、咖啡</li>
+                <li>交易 5：麵包、牛奶</li>
+            </ul>
+            <p>從這些交易中，我們可能發現麵包和牛奶經常一起出現。這就是關聯規則希望找出的商品之間的關聯模式。</p>
+        `
     },
-    { 
-        title: "2. 為什麼企業需要進行關聯分析？", 
-        content: `<p>在現代零售與電子商務環境中，每天產生的交易資料極為龐大，單靠人工或直覺根本無法逐筆檢視。</p><p>透過系統化的數據分析，企業能夠：<br>1. <strong>精準掌握隱性需求</strong>：發現肉眼看不見的商品組合規律。<br>2. <strong>優化商品陳列與推薦</strong>：將高關聯商品擺放在相近區域，或在網購結帳時自動推薦相關配件。<br>3. <strong>制定精準促銷策略</strong>：推出組合優惠包，進一步刺激客單價與營運效益。</p>` 
+    {
+        title: "2. 為什麼需要找「關聯」？",
+        content: `
+            <p>當資料量很大的時候，人很難一筆一筆查看所有交易。</p>
+            <p>例如一間商店一天有 <strong>10,000 筆交易</strong>，如果只靠人工觀察，很難發現商品之間的隱藏關係。</p>
+            <p>因此可以透過資料分析找出：</p>
+            <ul style="text-align: left; display: inline-block; margin: 6px 0; line-height: 1.5;">
+                <li>哪些商品常一起購買？</li>
+                <li>哪些商品可能具有關聯？</li>
+                <li>哪些商品可以一起促銷？</li>
+                <li>哪些商品適合放在相近的位置？</li>
+            </ul>
+            <p><strong>所以：</strong>關聯規則不是單純找出「熱門商品」，而是找出<strong><span>「商品之間的關係」</span></strong>。</p>
+        `
     },
-    { 
-        title: "3. 核心指標一：支援度（Support）", content: `<p>支援度是用來衡量：<strong><span>某個特定的商品組合在全體交易資料中出現的頻率究竟有多高。</span></strong></p><p><strong>計算公式：</strong><br><code>支援度 ＝ 包含該商品組合的交易筆數 ÷ 總交易筆數</code></p><p><strong>實務意義：</strong>支援度越高，代表該商品組合在整個賣場中越具代表性與市場能見度，是評估商品組合熱門程度的重要指標。</p>` 
+    {
+        title: "3. 支援度（Support）",
+        content: `
+            <p>支援度可以用來了解：<strong><span>某個商品組合在全部交易中出現得有多頻繁。</span></strong></p>
+            <p>例如總共有 100 筆交易，其中有 20 筆同時購買<strong><span>「麵包＋牛奶」</span></strong>：</p>
+            <p style="background: #f8f9fa; padding: 8px; border-radius: 6px; font-family: monospace; text-align: center;">支援度 = 20 ÷ 100 = 20%</p>
+            <p>代表：所有交易中，有 20% 同時出現麵包和牛奶。</p>
+            <p><strong>簡單理解：</strong>支援度越高 ➔ 這個商品組合越常出現。</p>
+        `
     },
-    { 
-        title: "4. 核心指標二：信心度（Confidence）", 
-        content: `<p>信心度是用來衡量：<strong><span>當顧客購買了商品 A 時，同時也購買商品 B 的「條件機率」有多高。</span></strong></p><p><strong>計算公式：</strong><br><code>信心度 ＝ 同時包含 A 與 B 的交易筆數 ÷ 包含 A 的交易筆數</code></p><p><strong>實務意義：</strong>信心度越高，代表商品 A 對商品 B 具有強烈的帶動效果（例如買了印表機的人，有多大比例會順便買墨水匣）。</p>` 
+    {
+        title: "4. 信心度（Confidence）",
+        content: `
+            <p>信心度則是用來了解：<strong><span>當顧客購買商品 A 時，同時購買商品 B 的可能性有多高。</span></strong></p>
+            <p>例如 100 位購買麵包的顧客中，有 60 人也購買牛奶：</p>
+            <p style="background: #f8f9fa; padding: 8px; border-radius: 6px; font-family: monospace; text-align: center;">信心度 = 60 ÷ 100 = 60%</p>
+            <p>意思是：購買麵包的顧客中，有 60% 同時購買牛奶。</p>
+            <p><strong>簡單理解：</strong>信心度越高 ➔ A 出現時，B 也出現的可能性越高。</p>
+        `
     },
-    { 
-        title: "5. 深入解析：支援度與信心度的區別", 
-        content: `<p>許多初學者容易搞混這兩個指標，我們可以透過視角的不同來區分：</p><p>• <strong>支援度（Support）</strong>：站在<strong>「全體宏觀視角」</strong>，看這個組合在所有顧客中有多常見。<br>• <strong>信心度（Confidence）</strong>：站在<strong>「條件因果視角」</strong>，看在「已經買了 A」的前提下，順便買 B 的可能性有多大。<br><br>兩者相輔相成，必須同時評估才能找出真正具備商業價值的規則。</p>` 
+    {
+        title: "5. 支援度和信心度有什麼不同？",
+        content: `
+            <p>這裡可以特別讓學生理解，因為之後你的任務可能會用到。</p>
+            <table style="width:100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; text-align: left;">
+                <tr style="background: #f1f2f6;"><th style="padding: 6px; border: 1px solid #dcdde1;">指標</th><th style="padding: 6px; border: 1px solid #dcdde1;">想知道什麼？</th></tr>
+                <tr><td style="padding: 6px; border: 1px solid #dcdde1;"><strong>支援度</strong></td><td style="padding: 6px; border: 1px solid #dcdde1;">這個組合有多常出現？</td></tr>
+                <tr><td style="padding: 6px; border: 1px solid #dcdde1;"><strong>信心度</strong></td><td style="padding: 6px; border: 1px solid #dcdde1;">買 A 的人，有多少也買 B？</td></tr>
+            </table>
+            <p style="margin-top: 6px;"><strong>可以簡單記成：</strong><br>支援度 ➔ 看「常不常見」<br>信心度 ➔ 看「跟著買的可能性」</p>
+        `
     },
-    { 
-        title: "6. 關聯規則分析的標準三大步驟", content: `<p>要順利完成一次完整的商用關聯分析，通常需要遵循以下三個步驟：</p><p>1. <strong>資料蒐集與前處理</strong>：匯集原始的 POS 銷售紀錄、發票明細與會員消費日誌。<br>2. <strong>指標計算與評估</strong>：利用演算法或人工逐一計算各商品組合的支援度與信心度數值。<br>3. <strong>洞察解讀與佈局</strong>：挑選出高支援度與高信心度的規則，轉化為實際的商業行銷與陳列決策。</p>` 
+    {
+        title: "6. 如何從資料中找出關聯？",
+        content: `
+            <p>進行資料分析時，可以先觀察：</p>
+            <p><strong>第一步：整理交易資料</strong>（例如記錄交易各自買了什麼）。</p>
+            <p><strong>第二步：比較商品組合</strong>（觀察麵包＋牛奶、麵包＋咖啡、牛奶＋咖啡各出現幾次）。</p>
+            <p><strong>第三步：找出可能的關聯</strong>（再利用支援度、信心度等指標判斷哪些關聯比較值得注意）。</p>
+        `
     },
-    { 
-        title: "7. 數據不只是冷冰冰的數字", content: `<p>在商業環境中，數據分析的真正靈魂在於<strong>將數位足跡轉化為有溫度的商業洞察</strong>。</p><p>每一筆結帳明細、每一個點擊紀錄背後，都是真實顧客的生活型態、消費偏好與潛在需求。學會解讀這些數字，才能在激烈的市場競爭中領先對手。</p>` 
+    {
+        title: "7. 資料不只是「數字」",
+        content: `
+            <p>進行數據分析時，不能只看到數字就直接下結論。</p>
+            <table style="width:100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; text-align: center;">
+                <tr style="background: #f1f2f6;"><th style="padding: 5px; border: 1px solid #dcdde1;">商品</th><th style="padding: 5px; border: 1px solid #dcdde1;">銷售量</th></tr>
+                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">A</td><td style="padding: 5px; border: 1px solid #dcdde1;">100</td></tr>
+                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">B</td><td style="padding: 5px; border: 1px solid #dcdde1;">80</td></tr>
+                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">C</td><td style="padding: 5px; border: 1px solid #dcdde1;">150</td></tr>
+            </table>
+            <p>我們可以知道 C 的銷售量最高。但如果要做決策，還可以進一步問：</p>
+            <ul style="text-align: left; display: inline-block; margin: 4px 0 0 15px; line-height: 1.4;">
+                <li>C 是不是只有某個時段特別熱賣？</li>
+                <li>C 是否常和其他商品一起購買？</li>
+                <li>C 的庫存是否足夠？</li>
+                <li>C 的銷售量最近是上升還是下降？</li>
+            </ul>
+            <p style="margin-top: 8px;"><strong>因此：</strong>資料分析不只是「看數字」，而是從資料中找出可以幫助決策的資訊。</p>
+        `
     },
-    { 
-        title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？", 
-        content: `<p>資料導向決策是指企業在面臨商業抉擇時，拋棄過去純粹依賴個人直覺、經驗猜測或主觀偏好的做法，改以<strong>客觀的量化數據、統計指標與趨勢預測</strong>作為決策的核心依據。</p><p>這能大幅降低因錯誤判斷而導致的庫存積壓與資金虧損風險。</p>` 
+    {
+        title: "8. 資料導向決策（Data-Driven Decision Making）",
+        content: `
+            <p>資料導向決策是指：<strong><span>利用客觀的資料與數據作為決策依據，而不是只依靠個人直覺。</span></strong></p>
+            <p>例如便利商店要決定「哪一種商品需要增加庫存？」</p>
+            <p>如果只憑感覺：<strong>「我覺得 A 商品應該很好賣。」</strong>這是主觀判斷。</p>
+            <p>如果查看歷史銷售量、銷售趨勢、庫存數量、銷售時段與商品關聯，再做決定：<strong><span>「A 商品最近銷售量持續增加，而且目前庫存偏低，因此優先補貨。」</span></strong></p>
+            <p style="margin-top: 8px;">這就是：<strong>資料導向決策。</strong></p>
+        `
     },
-    { 
-        title: "9. 資料導向決策的標準商業閉環", 
-        content: `<p style="text-align: center; color: #2980b9; font-weight: bold; padding: 5px 0;">資料蒐集 ➔ 數據分析 ➔ 發現規律 ➔ 商業判斷 ➔ 實際決策</p><p>這五個環節環環相扣、不斷循環。每一個決策實施後產生的新數據，又會回饋到下一次的蒐集與分析中，確保企業營運永遠緊貼市場真實需求。</p>` 
+    {
+        title: "9. 資料導向決策的基本流程",
+        content: `
+            <p>可以讓學生記住這個流程：</p>
+            <p style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-weight: bold; text-align: center; color: #2980b9;">
+                資料 ➔ 分析 ➔ 發現 ➔ 判斷 ➔ 決策
+            </p>
+            <p><strong>例如：</strong><br>銷售資料 ➔ 比較不同商品銷售量 ➔ 發現 A 商品近期銷售增加 ➔ 判斷可能有缺貨風險 ➔ 決定增加 A 商品庫存。</p>
+            <p style="margin-top: 8px; color: #e67e22; font-weight: bold;">這也會直接銜接你後面的實驗任務。</p>
+        `
     },
-    { 
-        title: "10. 學習總結：核心精神與心法", 
-        content: `<p style="text-align: center; font-weight: bold; color: #27ae60; font-size: 15px;">「資料 ➔ 比較 ➔ 找規律 ➔ 做決策」</p><p>恭喜你完成基礎教學！掌握這套完整的思考邏輯，並結合接下來的 AR 實體卡片互動探索，你將能輕鬆在商用數據分析情境中，做出最具商業價值的智慧判斷！</p>` 
+    {
+        title: "10. 資料分析最重要的不是算得多複雜",
+        content: `
+            <p>學習數據分析，不一定要先學習複雜的程式或數學。</p>
+            <p>在日常商業情境中，首先需要學會：</p>
+            <ul style="text-align: left; display: inline-block; margin: 8px 0; line-height: 1.5;">
+                <li>看懂資料</li>
+                <li>比較資料</li>
+                <li>找出資料中的關聯或規律</li>
+                <li>利用資料做出合理的決策</li>
+            </ul>
+            <p style="margin-top: 10px; font-size: 15px; color: #2c3e50; text-align: center; font-weight: bold;">
+                也就是：資料 ➔ 比較 ➔ 找規律 ➔ 做決策
+            </p>
+        `
     }
 ];
 
@@ -763,7 +857,7 @@ async function loadAdminDashboardData() {
         });
         tableContainer.innerHTML = tableHtml + `</table>`;
     } catch (error) {
-        statsEl.innerHTML = "<span style='color: #c0392b; 載入數據發生錯誤。</span>";
+        statsEl.innerHTML = "<span style='color: #c0392b;'>載入數據發生錯誤。</span>";
         tableContainer.innerHTML = "";
     }
 }
