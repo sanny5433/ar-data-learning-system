@@ -17,8 +17,9 @@ function goToScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => screen.classList.remove('active'));
     
-    ['1', '2', '3'].forEach(i => {
-        const sceneEl = document.getElementById(`ar-scene-${i}`);
+    // 關閉所有 AR 鏡頭
+    ['1', '2', '3', 'mobile'].forEach(i => {
+        const sceneEl = document.getElementById(i === 'mobile' ? 'ar-scene-mobile' : `ar-scene-${i}`);
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
             try {
                 sceneEl.systems["mindar-image-system"].stop();
@@ -63,21 +64,7 @@ function getParticipantDocRef() {
     return doc(db, "participants", getParticipantDocId());
 }
 
-function addNoteReminder(taskId) {
-    const textEl = document.getElementById(`${taskId}-record-text`);
-    if (textEl && !document.getElementById(`${taskId}-note-reminder`)) {
-        const reminder = document.createElement('div');
-        reminder.id = `${taskId}-note-reminder`;
-        reminder.style.fontSize = "11px";
-        reminder.style.color = "#e67e22";
-        reminder.style.marginTop = "3px";
-        reminder.style.marginBottom = "5px";
-        reminder.style.fontWeight = "bold";
-        reminder.innerHTML = "💡 小提醒：筆記有填寫要記得儲存喔！(最多可儲存 3 次)";
-        textEl.parentNode.insertBefore(reminder, textEl.nextSibling);
-    }
-}
-
+// 手機掃描進來時，自動切換到純 AR 掃描畫面
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlSession = urlParams.get('session');
@@ -96,8 +83,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (mode === 'ar') {
             setTimeout(() => {
-                window.startTask1();
-            }, 300);
+                startMobileAR(1); // 預設從 Task 1 開始掃描
+            }, 400);
         }
     }
 });
@@ -124,7 +111,7 @@ window.startSession = async function() {
     try {
         const docSnap = await getDoc(participantDocRef);
         if (docSnap.exists()) {
-            alert(`[防呆攔截] 實驗場次「 ${sessionPrefix} 」中已存在受試者編號「 ${currentParticipantId} 」的測驗紀錄！同場次編號不得重複。`);
+            alert(`[防呆攔截] 實驗場次「 ${sessionPrefix} 」中已存在受試者編號「 ${currentParticipantId} 」的測驗紀錄！`);
             return;
         }
     } catch (error) {
@@ -146,7 +133,23 @@ window.startSession = async function() {
     goToScreen('screen-intro');
 }
 
-// 完整保留 10 頁詳細基礎教學
+// 啟動手機專屬 AR 掃描模式
+window.startMobileAR = function(taskNum) {
+    goToScreen('screen-mobile-ar');
+    document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
+    document.getElementById('mobile-scan-status').innerHTML = `📱 正在啟動 Task ${taskNum} 鏡頭，請對準實體卡片...`;
+
+    const sceneEl = document.getElementById('ar-scene-mobile');
+    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+        sceneEl.systems["mindar-image-system"].start();
+    }
+}
+
+window.switchMobileTask = function(taskNum) {
+    startMobileAR(taskNum);
+}
+
+// 完整教學與前測邏輯保持不變
 const tutorialPages = [
     { title: "1. 什麼是關聯規則（Association Rules）？", content: `<p>關聯規則是一種用來發掘不同商品、事件或行為之間關聯性的方法。</p><p>簡單來說，就是從大量資料中找出：<strong><span>「哪些東西經常一起出現？」</span></strong>例如在超市購物籃中，顧客買了麵包是否常順便買牛奶？這就是關聯分析的核心。</p>` },
     { title: "2. 為什麼需要找「關聯」？", content: `<p>當資料量龐大時，單靠人工無法逐筆檢視交易明細。透過數據分析，企業能精準掌握顧客的「隱性需求」與「共同購買行為」，進而優化商品陳列、規劃組合促銷與提升營運效益。</p>` },
@@ -206,17 +209,19 @@ function showARPairingScreen() {
     });
 }
 
-// WebAR 實體卡片自動綁定監聽
+// 手機與電腦端共用的卡片掃描偵測
 document.addEventListener("DOMContentLoaded", () => {
-    for (let i = 0; i < 5; i++) {
-        const el1 = document.getElementById(`target-1-${i}`);
-        if (el1) el1.addEventListener("targetFound", () => scanARCard('task1', requiredCards.task1[i], `偵測到 ${requiredCards.task1[i]}！`));
+    for (let i = 0; i < 15; i++) {
+        const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
+        const taskId = i < 5 ? 'task1' : (i < 10 ? 'task2' : 'task3');
+        const cardId = `${taskId.toUpperCase()}-Card0${(i%5)+1}`;
 
-        const el2 = document.getElementById(`target-2-${i}`);
-        if (el2) el2.addEventListener("targetFound", () => scanARCard('task2', requiredCards.task2[i], `偵測到 ${requiredCards.task2[i]}！`));
-
-        const el3 = document.getElementById(`target-3-${i}`);
-        if (el3) el3.addEventListener("targetFound", () => scanARCard('task3', requiredCards.task3[i], `偵測到 ${requiredCards.task3[i]}！`));
+        if (mobEl) {
+            mobEl.addEventListener("targetFound", () => {
+                scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
+                document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
+            });
+        }
     }
 });
 
@@ -234,7 +239,7 @@ window.scanARCard = function(taskId, cardId, cardDescription) {
     const scannedCount = scannedCardsByTask[taskId].size;
     const totalCount = requiredCards[taskId].length;
 
-    const statusMsg = `<strong>[AR 掃描成功 - ${cardId}]</strong> ${cardDescription} (已探索 ${scannedCount}/${totalCount} 張卡片)`;
+    const statusMsg = `📱 手機 AR 掃描狀態：${cardDescription} (已探索 ${scannedCount}/${totalCount} 張卡片)`;
     if (taskId === 'task1') document.getElementById('ar-scan-result-1').innerHTML = statusMsg;
     else if (taskId === 'task2') document.getElementById('ar-scan-result-2').innerHTML = statusMsg;
     else if (taskId === 'task3') document.getElementById('ar-scan-result-3').innerHTML = statusMsg;
@@ -294,25 +299,10 @@ window.saveTaskRecord = function(taskId) {
         savedAt: serverTimestamp()
     }, { merge: true }).then(() => {
         alert(`💾 Task ${taskId.replace('task', '')} 第 ${currentCount} 次資料紀錄儲存成功！`);
-        
-        if (currentCount >= 3) {
-            textEl.disabled = true;
-            textEl.style.backgroundColor = "#e4e4e4";
-            textEl.style.color = "#555";
-            textEl.style.cursor = "not-allowed";
-
-            const saveBtn = textEl.parentNode.querySelector('button');
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.style.backgroundColor = "#95a5a6";
-                saveBtn.style.cursor = "not-allowed";
-                saveBtn.innerText = "🔒 已達上限（已鎖定）";
-            }
-        }
     }).catch(err => console.error(err));
 }
 
-// Task 1 ~ 3 題目
+// 題目與測驗邏輯
 const task1Questions = [
     { qId: "t1_q1", q: "根據掃描的 5 張交易小卡，總共有幾位同學（幾筆交易）？", options: ["A. 3筆", "B. 4筆", "C. 5筆", "D. 6筆"], ans: "C" },
     { qId: "t1_q2", q: "在這 5 筆交易中，總共有幾筆交易包含「麵包」？", options: ["A. 2筆", "B. 3筆", "C. 4筆", "D. 5筆"], ans: "C" },
@@ -325,13 +315,7 @@ window.startTask1 = function() {
     goToScreen('screen-task1');
     taskStartTime = Date.now();
     renderTaskQuestions('task1', task1Questions);
-    addNoteReminder('task1');
     setDoc(getParticipantDocRef(), { currentStage: "task1" }, { merge: true }).catch(err => err);
-    
-    const sceneEl = document.getElementById('ar-scene-1');
-    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-        sceneEl.systems["mindar-image-system"].start();
-    }
 }
 
 const task2Questions = [
@@ -346,13 +330,7 @@ window.startTask2 = function() {
     goToScreen('screen-task2');
     taskStartTime = Date.now();
     renderTaskQuestions('task2', task2Questions);
-    addNoteReminder('task2');
     setDoc(getParticipantDocRef(), { currentStage: "task2" }, { merge: true }).catch(err => err);
-
-    const sceneEl = document.getElementById('ar-scene-2');
-    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-        sceneEl.systems["mindar-image-system"].start();
-    }
 }
 
 const task3Questions = [
@@ -367,13 +345,7 @@ window.startTask3 = function() {
     goToScreen('screen-task3');
     taskStartTime = Date.now();
     renderTaskQuestions('task3', task3Questions);
-    addNoteReminder('task3');
     setDoc(getParticipantDocRef(), { currentStage: "task3" }, { merge: true }).catch(err => err);
-
-    const sceneEl = document.getElementById('ar-scene-3');
-    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-        sceneEl.systems["mindar-image-system"].start();
-    }
 }
 
 function renderTaskQuestions(taskId, qList) {
@@ -545,7 +517,7 @@ function renderPreTestResult(score, correctCount, wrongItems) {
     }
 }
 
-// 後測
+// 後測與管理員邏輯保持不導向錯誤
 const postTestQuestionsList = [
     { questionId: "post_q1", question: "在關聯規則分析中，『支援度 (Support)』主要用來衡量什麼？", options: ["A. 商品價格的高低", "B. 商品組合在全體交易中出現的頻率", "C. 顧客結帳的速度", "D. 店員補貨的次數"], correctAnswer: "B" },
     { questionId: "post_q2", question: "若商品 A ➔ 商品 B 的信心度 (Confidence) 很高，代表什麼意義？", options: ["A. 買 A 的顧客中，很高比例也會買 B", "B. 所有人都不買 B", "C. A 和 B 毫無關係", "D. B 的成本比 A 高"], correctAnswer: "A" },
@@ -694,7 +666,6 @@ window.verifyAdminLogin = async function() {
     await loadAdminDashboardData();
 }
 
-// 完整保留研究者後台詳細儀表板與數據讀取邏輯
 let cachedParticipantsMeta = [];
 async function loadAdminDashboardData() {
     const statsEl = document.getElementById('admin-summary-stats');
