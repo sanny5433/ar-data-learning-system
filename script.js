@@ -63,7 +63,6 @@ function getParticipantDocRef() {
     return doc(db, "participants", getParticipantDocId());
 }
 
-// 手機掃描進來時，自動切換到純 AR 掃描畫面
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlSession = urlParams.get('session');
@@ -132,14 +131,12 @@ window.startSession = async function() {
     goToScreen('screen-intro');
 }
 
-// 啟動手機專屬 AR 掃描模式
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
     document.getElementById('mobile-scan-status').innerHTML = `📱 正在準備 Task ${taskNum} 鏡頭，請點擊下方橘色按鈕授權相機！`;
 }
 
-// 強制呼叫相機權限並啟動 MindAR
 window.forceStartMobileCamera = function() {
     const triggerBox = document.getElementById('camera-trigger-box');
     if (triggerBox) triggerBox.style.display = 'none';
@@ -160,18 +157,45 @@ window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-// 【完整保留 10 頁詳細版】基礎教學內容
+// 【內容擴充版：完整 10 頁詳細基礎教學】
 const tutorialPages = [
-    { title: "1. 什麼是關聯規則（Association Rules）？", content: `<p>關聯規則是一種用來發掘不同商品、事件或行為之間關聯性的方法。</p><p>簡單來說，就是從大量資料中找出：<strong><span>「哪些東西經常一起出現？」</span></strong>例如在超市購物籃中，顧客買了麵包是否常順便買牛奶？這就是關聯分析的核心。</p>` },
-    { title: "2. 為什麼需要找「關聯」？", content: `<p>當資料量龐大時，單靠人工無法逐筆檢視交易明細。透過數據分析，企業能精準掌握顧客的「隱性需求」與「共同購買行為」，進而優化商品陳列、規劃組合促銷與提升營運效益。</p>` },
-    { title: "3. 核心指標一：支援度（Support）", content: `<p>支援度用來衡量：<strong><span>某個商品組合在全體交易中出現的頻率有多高。</span></strong></p><p>計算方式：<code>包含該組合的交易筆數 ÷ 總交易筆數</code><br>支援度越高，代表該商品組合越具代表性與市場能見度。</p>` },
-    { title: "4. 核心指標二：信心度（Confidence）", content: `<p>信心度用來衡量：<strong><span>當顧客購買商品 A 時，同時購買商品 B 的條件機率有多高。</span></strong></p><p>計算方式：<code>同時包含 A 與 B 的交易筆數 ÷ 包含 A 的交易筆數</code><br>信心度越高，代表 A 與 B 的聯動購買強度越大。</p>` },
-    { title: "5. 支援度與信心度的區別", content: `<p>• <strong>支援度 (Support)</strong>：從「整體宏觀視角」出發，看這個組合在所有交易中有多常見。<br>• <strong>信心度 (Confidence)</strong>：從「條件因果視角」出發，看買了 A 之後會順便買 B 的可能性有多大。</p>` },
-    { title: "6. 關聯規則分析的三大步驟", content: `<p>1. <strong>資料蒐集與整理</strong>：匯集原始交易紀錄與發票數據。<br>2. <strong>計算與指標評估</strong>：逐一計算各商品組合的支援度與信心度。<br>3. <strong>解讀與決策</strong>：挑選出高支援度與高信心度的規則作為行銷佈局依據。</p>` },
-    { title: "7. 數據不只是冷冰冰的數字", content: `<p>在商業環境中，資料分析的真正價值在於<strong>將數位足跡轉化為洞察</strong>。每一筆結帳紀錄背後，都是顧客真實的生活型態與消費習慣。</p>` },
-    { title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？", content: `<p>資料導向決策是指在進行商業判斷時，拋棄純粹的個人直覺與經驗猜測，改以<strong>客觀的數據、量化指標與趨勢分析</strong>作為決策的核心依據，降低決策風險。</p>` },
-    { title: "9. 資料導向決策的標準閉環流程", content: `<p style="text-align: center; color: #2980b9; font-weight: bold; padding: 5px 0;">資料蒐集 ➔ 數據分析 ➔ 發現規律 ➔ 商業判斷 ➔ 實際決策</p><p>每一個環節環環相扣，確保每次調整都能對應市場真實需求。</p>` },
-    { title: "10. 學習總結：核心精神", content: `<p style="text-align: center; font-weight: bold; color: #27ae60;">資料 ➔ 比較 ➔ 找規律 ➔ 做決策</p><p>掌握這套思考邏輯，您就能在商用數據分析與 AR 互動情境中，輕鬆做出最具商業價值的智慧決策！</p>` }
+    { 
+        title: "1. 什麼是關聯規則（Association Rules）？", 
+        content: `<p>關聯規則是商用大數據分析中一種非常核心且強大的方法，主要用來發掘不同商品、事件或消費者行為之間隱含的關聯性。</p><p>簡單來說，它就像是一位細心的店長，從成千上萬筆結帳明細中去找出：<strong><span>「哪些商品經常被顧客同時放入同一個購物籃中？」</span></strong>例如：當顧客購買了吐司與麵包時，是否也經常順便購買鮮奶？這種「同現關係」正是關聯分析最想找出的規律。</p>` 
+    },
+    { 
+        title: "2. 為什麼企業需要進行關聯分析？", 
+        content: `<p>在現代零售與電子商務環境中，每天產生的交易資料極為龐大，單靠人工或直覺根本無法逐筆檢視。</p><p>透過系統化的數據分析，企業能夠：<br>1. <strong>精準掌握隱性需求</strong>：發現肉眼看不見的商品組合規律。<br>2. <strong>優化商品陳列與推薦</strong>：將高關聯商品擺放在相近區域，或在網購結帳時自動推薦相關配件。<br>3. <strong>制定精準促銷策略</strong>：推出組合優惠包，進一步刺激客單價與營運效益。</p>` 
+    },
+    { 
+        title: "3. 核心指標一：支援度（Support）", content: `<p>支援度是用來衡量：<strong><span>某個特定的商品組合在全體交易資料中出現的頻率究竟有多高。</span></strong></p><p><strong>計算公式：</strong><br><code>支援度 ＝ 包含該商品組合的交易筆數 ÷ 總交易筆數</code></p><p><strong>實務意義：</strong>支援度越高，代表該商品組合在整個賣場中越具代表性與市場能見度，是評估商品組合熱門程度的重要指標。</p>` 
+    },
+    { 
+        title: "4. 核心指標二：信心度（Confidence）", 
+        content: `<p>信心度是用來衡量：<strong><span>當顧客購買了商品 A 時，同時也購買商品 B 的「條件機率」有多高。</span></strong></p><p><strong>計算公式：</strong><br><code>信心度 ＝ 同時包含 A 與 B 的交易筆數 ÷ 包含 A 的交易筆數</code></p><p><strong>實務意義：</strong>信心度越高，代表商品 A 對商品 B 具有強烈的帶動效果（例如買了印表機的人，有多大比例會順便買墨水匣）。</p>` 
+    },
+    { 
+        title: "5. 深入解析：支援度與信心度的區別", 
+        content: `<p>許多初學者容易搞混這兩個指標，我們可以透過視角的不同來區分：</p><p>• <strong>支援度（Support）</strong>：站在<strong>「全體宏觀視角」</strong>，看這個組合在所有顧客中有多常見。<br>• <strong>信心度（Confidence）</strong>：站在<strong>「條件因果視角」</strong>，看在「已經買了 A」的前提下，順便買 B 的可能性有多大。<br><br>兩者相輔相成，必須同時評估才能找出真正具備商業價值的規則。</p>` 
+    },
+    { 
+        title: "6. 關聯規則分析的標準三大步驟", content: `<p>要順利完成一次完整的商用關聯分析，通常需要遵循以下三個步驟：</p><p>1. <strong>資料蒐集與前處理</strong>：匯集原始的 POS 銷售紀錄、發票明細與會員消費日誌。<br>2. <strong>指標計算與評估</strong>：利用演算法或人工逐一計算各商品組合的支援度與信心度數值。<br>3. <strong>洞察解讀與佈局</strong>：挑選出高支援度與高信心度的規則，轉化為實際的商業行銷與陳列決策。</p>` 
+    },
+    { 
+        title: "7. 數據不只是冷冰冰的數字", content: `<p>在商業環境中，數據分析的真正靈魂在於<strong>將數位足跡轉化為有溫度的商業洞察</strong>。</p><p>每一筆結帳明細、每一個點擊紀錄背後，都是真實顧客的生活型態、消費偏好與潛在需求。學會解讀這些數字，才能在激烈的市場競爭中領先對手。</p>` 
+    },
+    { 
+        title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？", 
+        content: `<p>資料導向決策是指企業在面臨商業抉擇時，拋棄過去純粹依賴個人直覺、經驗猜測或主觀偏好的做法，改以<strong>客觀的量化數據、統計指標與趨勢預測</strong>作為決策的核心依據。</p><p>這能大幅降低因錯誤判斷而導致的庫存積壓與資金虧損風險。</p>` 
+    },
+    { 
+        title: "9. 資料導向決策的標準商業閉環", 
+        content: `<p style="text-align: center; color: #2980b9; font-weight: bold; padding: 5px 0;">資料蒐集 ➔ 數據分析 ➔ 發現規律 ➔ 商業判斷 ➔ 實際決策</p><p>這五個環節環環相扣、不斷循環。每一個決策實施後產生的新數據，又會回饋到下一次的蒐集與分析中，確保企業營運永遠緊貼市場真實需求。</p>` 
+    },
+    { 
+        title: "10. 學習總結：核心精神與心法", 
+        content: `<p style="text-align: center; font-weight: bold; color: #27ae60; font-size: 15px;">「資料 ➔ 比較 ➔ 找規律 ➔ 做決策」</p><p>恭喜你完成基礎教學！掌握這套完整的思考邏輯，並結合接下來的 AR 實體卡片互動探索，你將能輕鬆在商用數據分析情境中，做出最具商業價值的智慧判斷！</p>` 
+    }
 ];
 
 let currentTutorialIndex = 0;
@@ -220,7 +244,6 @@ function showARPairingScreen() {
     });
 }
 
-// 卡片掃描偵測
 document.addEventListener("DOMContentLoaded", () => {
     for (let i = 0; i < 15; i++) {
         const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
@@ -313,7 +336,6 @@ window.saveTaskRecord = function(taskId) {
     }).catch(err => console.error(err));
 }
 
-// 題目與測驗邏輯
 const task1Questions = [
     { qId: "t1_q1", q: "根據掃描的 5 張交易小卡，總共有幾位同學（幾筆交易）？", options: ["A. 3筆", "B. 4筆", "C. 5筆", "D. 6筆"], ans: "C" },
     { qId: "t1_q2", q: "在這 5 筆交易中，總共有幾筆交易包含「麵包」？", options: ["A. 2筆", "B. 3筆", "C. 4筆", "D. 5筆"], ans: "C" },
@@ -419,7 +441,6 @@ window.submitTaskQuestions = function(taskId) {
     else startPostTest();
 }
 
-// 前測
 const preTestQuestionsList = [
     { questionId: "pre_q1", question: "以下哪一項最能幫助我們客觀了解顧客的實際購買行為？", options: ["A. 店面牆壁的顏色", "B. 顧客的歷史購買紀錄與發票資料", "C. 員工制服的款式", "D. 店面距離捷運站的遠近"], correctAnswer: "B" },
     { questionId: "pre_q2", question: "當我們在分析店家一整天的銷售數據時，主要目的是為了什麼？", options: ["A. 隨便亂猜營業額", "B. 找出熱門時段與銷售規律，以優化人力與備貨", "C. 裝飾網頁版面", "D. 增加店租成本"], correctAnswer: "B" },
@@ -528,7 +549,6 @@ function renderPreTestResult(score, correctCount, wrongItems) {
     }
 }
 
-// 後測與管理員邏輯
 const postTestQuestionsList = [
     { questionId: "post_q1", question: "在關聯規則分析中，『支援度 (Support)』主要用來衡量什麼？", options: ["A. 商品價格的高低", "B. 商品組合在全體交易中出現的頻率", "C. 顧客結帳的速度", "D. 店員補貨的次數"], correctAnswer: "B" },
     { questionId: "post_q2", question: "若商品 A ➔ 商品 B 的信心度 (Confidence) 很高，代表什麼意義？", options: ["A. 買 A 的顧客中，很高比例也會買 B", "B. 所有人都不買 B", "C. A 和 B 毫無關係", "D. B 的成本比 A 高"], correctAnswer: "A" },
@@ -743,7 +763,7 @@ async function loadAdminDashboardData() {
         });
         tableContainer.innerHTML = tableHtml + `</table>`;
     } catch (error) {
-        statsEl.innerHTML = "<span style='color: #c0392b;'>載入數據發生錯誤。</span>";
+        statsEl.innerHTML = "<span style='color: #c0392b; 載入數據發生錯誤。</span>";
         tableContainer.innerHTML = "";
     }
 }
