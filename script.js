@@ -132,14 +132,7 @@ window.startSession = async function() {
 }
 
 /* ======================================================
-   【本次修改重點：手機 WebAR 相機啟動與顯示】
-   原本 a-scene 是寫死在 index.html，畫面一開始就在
-   display:none 狀態下被初始化，導致 canvas 尺寸算錯、
-   永遠顯示灰畫面。
-   
-   解法：把 a-scene 改成「畫面真正顯示之後」才動態插入，
-   並保留原本必須手動點擊才能啟動相機的按鈕（這是手機瀏覽器
-   要求的真實使用者授權手勢，不是假掃描按鈕）。
+   【手機 WebAR 相機啟動與顯示】相關程式碼
    ====================================================== */
 
 const mobileARSceneTemplate = `
@@ -166,6 +159,8 @@ const mobileARSceneTemplate = `
 `;
 
 let mobileARSceneReady = false;
+let mobileARReadyFired = false;
+let mobileARStartTimeoutId = null;
 
 function attachMobileTargetListeners() {
     for (let i = 0; i < 15; i++) {
@@ -176,6 +171,8 @@ function attachMobileTargetListeners() {
         if (mobEl && !mobEl.dataset.listenerAttached) {
             mobEl.dataset.listenerAttached = "true";
             mobEl.addEventListener("targetFound", () => {
+                mobileARReadyFired = true;
+                clearTimeout(mobileARStartTimeoutId);
                 scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
                 document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
             });
@@ -188,18 +185,47 @@ function ensureMobileARScene() {
     const wrapper = document.getElementById('mobile-ar-wrapper');
     if (!wrapper) return;
 
-    // 這時候 #screen-mobile-ar 已經是 display:block（畫面已顯示），
-    // 才把 a-scene 插入 DOM，避免在隱藏容器裡初始化造成灰畫面。
+    // 這時候 #screen-mobile-ar 已經是可見狀態，才把 a-scene 插入 DOM，
+    // 避免在隱藏容器裡初始化導致相機畫面尺寸算錯。
     wrapper.innerHTML = mobileARSceneTemplate;
     mobileARSceneReady = true;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
     if (sceneEl) {
-        if (sceneEl.hasLoaded) {
+        const onLoaded = () => {
             attachMobileTargetListeners();
+            // 強制讓 A-Frame 重新計算畫面尺寸，避免殘留的 0x0 尺寸問題
+            if (typeof sceneEl.resize === 'function') {
+                try { sceneEl.resize(); } catch (e) {}
+            }
+        };
+
+        if (sceneEl.hasLoaded) {
+            onLoaded();
         } else {
-            sceneEl.addEventListener('loaded', attachMobileTargetListeners);
+            sceneEl.addEventListener('loaded', onLoaded);
         }
+
+        // MindAR 真正啟動成功時會觸發 arReady，這裡才是「相機真的顯示出來了」的訊號
+        sceneEl.addEventListener('arReady', () => {
+            mobileARReadyFired = true;
+            clearTimeout(mobileARStartTimeoutId);
+            const statusEl = document.getElementById('mobile-scan-status');
+            if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
+            if (typeof sceneEl.resize === 'function') {
+                try { sceneEl.resize(); } catch (e) {}
+            }
+        });
+
+        // MindAR 啟動失敗時會觸發 arError，把真正原因顯示出來
+        sceneEl.addEventListener('arError', (evt) => {
+            clearTimeout(mobileARStartTimeoutId);
+            const statusEl = document.getElementById('mobile-scan-status');
+            const triggerBox = document.getElementById('camera-trigger-box');
+            const detail = (evt && evt.detail) ? JSON.stringify(evt.detail) : '未知錯誤';
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗（arError）：${detail}`;
+            if (triggerBox) triggerBox.style.display = 'block';
+        });
     }
 }
 
@@ -225,13 +251,34 @@ window.forceStartMobileCamera = function() {
 
     function tryStartCamera() {
         try {
-            if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-                sceneEl.systems["mindar-image-system"].start();
-                if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片...`;
-            } else {
+            if (!sceneEl || !sceneEl.systems || !sceneEl.systems["mindar-image-system"]) {
                 if (statusEl) statusEl.innerHTML = `⚠️ 相機系統尚未準備完成，請稍等一下再點一次按鈕`;
                 if (triggerBox) triggerBox.style.display = 'block';
+                return;
             }
+
+            if (statusEl) statusEl.innerHTML = `🔄 正在啟動相機，請稍候...`;
+            const result = sceneEl.systems["mindar-image-system"].start();
+
+            if (result && typeof result.catch === 'function') {
+                result.catch(err => {
+                    const msg = (err && err.message) ? err.message : String(err);
+                    if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗：${msg}`;
+                    if (triggerBox) triggerBox.style.display = 'block';
+                });
+            }
+
+            // 如果過了 8 秒還沒收到 arReady（相機真的顯示出來）或掃到任何卡片，
+            // 就顯示明確的診斷訊息，而不是讓畫面一直停在灰色沒有任何說明。
+            mobileARReadyFired = false;
+            clearTimeout(mobileARStartTimeoutId);
+            mobileARStartTimeoutId = setTimeout(() => {
+                if (!mobileARReadyFired && statusEl) {
+                    statusEl.innerHTML = `⚠️ 相機已開啟，但畫面沒有反應。請確認 targets.mind 這個檔案是否存在（可在網址列直接打開「你的網址/targets.mind」測試看看能不能下載），或改用 Chrome 瀏覽器再試一次。`;
+                    if (triggerBox) triggerBox.style.display = 'block';
+                }
+            }, 8000);
+
         } catch (e) {
             const msg = (e && e.message) ? e.message : String(e);
             if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗：${msg}`;
@@ -239,10 +286,28 @@ window.forceStartMobileCamera = function() {
         }
     }
 
+    function afterSceneReady() {
+        // 先實際檢查 targets.mind 是否真的抓得到，抓不到就直接告訴你，不用用猜的
+        fetch('./targets.mind', { method: 'GET', cache: 'no-store' })
+            .then(res => {
+                if (!res.ok) {
+                    if (statusEl) statusEl.innerHTML = `⚠️ 找不到 targets.mind 檔案（HTTP ${res.status}）。請確認這個檔案有上傳到跟 index.html 同一層目錄，檔名大小寫也要完全一致。`;
+                    if (triggerBox) triggerBox.style.display = 'block';
+                    return;
+                }
+                tryStartCamera();
+            })
+            .catch(err => {
+                const msg = (err && err.message) ? err.message : String(err);
+                if (statusEl) statusEl.innerHTML = `⚠️ 讀取 targets.mind 檔案時發生網路錯誤：${msg}`;
+                if (triggerBox) triggerBox.style.display = 'block';
+            });
+    }
+
     if (sceneEl && !sceneEl.hasLoaded) {
-        sceneEl.addEventListener('loaded', tryStartCamera, { once: true });
+        sceneEl.addEventListener('loaded', afterSceneReady, { once: true });
     } else {
-        tryStartCamera();
+        afterSceneReady();
     }
 }
 
