@@ -131,25 +131,118 @@ window.startSession = async function() {
     goToScreen('screen-intro');
 }
 
+/* ======================================================
+   【本次修改重點：手機 WebAR 相機啟動與顯示】
+   原本 a-scene 是寫死在 index.html，畫面一開始就在
+   display:none 狀態下被初始化，導致 canvas 尺寸算錯、
+   永遠顯示灰畫面。
+   
+   解法：把 a-scene 改成「畫面真正顯示之後」才動態插入，
+   並保留原本必須手動點擊才能啟動相機的按鈕（這是手機瀏覽器
+   要求的真實使用者授權手勢，不是假掃描按鈕）。
+   ====================================================== */
+
+const mobileARSceneTemplate = `
+<a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 2" id="mob-target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 3" id="mob-target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 4" id="mob-target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+
+    <a-entity mindar-image-target="targetIndex: 5" id="mob-target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 6" id="mob-target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 7" id="mob-target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 8" id="mob-target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 9" id="mob-target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+
+    <a-entity mindar-image-target="targetIndex: 10" id="mob-target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 11" id="mob-target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 12" id="mob-target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 13" id="mob-target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+    <a-entity mindar-image-target="targetIndex: 14" id="mob-target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+</a-scene>
+`;
+
+let mobileARSceneReady = false;
+
+function attachMobileTargetListeners() {
+    for (let i = 0; i < 15; i++) {
+        const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
+        const taskId = i < 5 ? 'task1' : (i < 10 ? 'task2' : 'task3');
+        const cardId = `${taskId.toUpperCase()}-Card0${(i%5)+1}`;
+
+        if (mobEl && !mobEl.dataset.listenerAttached) {
+            mobEl.dataset.listenerAttached = "true";
+            mobEl.addEventListener("targetFound", () => {
+                scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
+                document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
+            });
+        }
+    }
+}
+
+function ensureMobileARScene() {
+    if (mobileARSceneReady) return;
+    const wrapper = document.getElementById('mobile-ar-wrapper');
+    if (!wrapper) return;
+
+    // 這時候 #screen-mobile-ar 已經是 display:block（畫面已顯示），
+    // 才把 a-scene 插入 DOM，避免在隱藏容器裡初始化造成灰畫面。
+    wrapper.innerHTML = mobileARSceneTemplate;
+    mobileARSceneReady = true;
+
+    const sceneEl = document.getElementById('ar-scene-mobile');
+    if (sceneEl) {
+        if (sceneEl.hasLoaded) {
+            attachMobileTargetListeners();
+        } else {
+            sceneEl.addEventListener('loaded', attachMobileTargetListeners);
+        }
+    }
+}
+
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
     document.getElementById('mobile-scan-status').innerHTML = `📱 正在準備 Task ${taskNum} 鏡頭，請點擊下方橘色按鈕授權相機！`;
+
+    // 等畫面真正切換為可見狀態之後，再建立 a-scene
+    setTimeout(ensureMobileARScene, 100);
 }
 
 window.forceStartMobileCamera = function() {
-    const triggerBox = document.getElementById('camera-trigger-box');
-    if (triggerBox) triggerBox.style.display = 'none';
+    ensureMobileARScene();
 
-    document.getElementById('mobile-scan-status').innerHTML = `📸 相機權限已獲取，正在掃描實體卡片...`;
+    const triggerBox = document.getElementById('camera-trigger-box');
+    const statusEl = document.getElementById('mobile-scan-status');
+
+    if (triggerBox) triggerBox.style.display = 'none';
+    if (statusEl) statusEl.innerHTML = `📸 正在請求相機權限，請稍候...`;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
-    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+
+    function tryStartCamera() {
         try {
-            sceneEl.systems["mindar-image-system"].start();
+            if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+                sceneEl.systems["mindar-image-system"].start();
+                if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片...`;
+            } else {
+                if (statusEl) statusEl.innerHTML = `⚠️ 相機系統尚未準備完成，請稍等一下再點一次按鈕`;
+                if (triggerBox) triggerBox.style.display = 'block';
+            }
         } catch (e) {
-            console.error("啟動相機失敗:", e);
+            const msg = (e && e.message) ? e.message : String(e);
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗：${msg}`;
+            if (triggerBox) triggerBox.style.display = 'block';
         }
+    }
+
+    if (sceneEl && !sceneEl.hasLoaded) {
+        sceneEl.addEventListener('loaded', tryStartCamera, { once: true });
+    } else {
+        tryStartCamera();
     }
 }
 
@@ -341,21 +434,6 @@ function showARPairingScreen() {
         correctLevel: QRCode.CorrectLevel.H
     });
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-    for (let i = 0; i < 15; i++) {
-        const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
-        const taskId = i < 5 ? 'task1' : (i < 10 ? 'task2' : 'task3');
-        const cardId = `${taskId.toUpperCase()}-Card0${(i%5)+1}`;
-
-        if (mobEl) {
-            mobEl.addEventListener("targetFound", () => {
-                scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
-                document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
-            });
-        }
-    }
-});
 
 window.scanARCard = function(taskId, cardId, cardDescription) {
     if (!scannedCardsByTask[taskId].has(cardId)) {
