@@ -20,6 +20,12 @@
             margin-bottom: 12px;
             background-color: #1e272e;
         }
+        .ar-container video,
+        .ar-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
         .task-content {
             max-height: 45vh;
             overflow-y: auto;
@@ -113,34 +119,16 @@
             <button class="primary-btn" onclick="startTask1()" style="margin-top: 5px; font-size: 12px; padding: 6px;">[電腦端測試] 直接在電腦檢視任務</button>
         </div>
 
-        <!-- 【手機專屬畫面】純 AR 掃描器 (加入強制相機啟動按鈕，完美解決黑框問題) -->
+        <!-- 【手機專屬畫面】純 AR 掃描器 (相機動態建立，避免隱藏容器造成灰畫面) -->
         <div id="screen-mobile-ar" class="screen">
             <div class="progress-badge" id="mobile-task-badge" style="background-color: #27ae60;">📱 手機專屬 AR 掃描器</div>
             
             <div class="ar-container" id="mobile-ar-wrapper">
-                <a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-                    <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 2" id="mob-target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 3" id="mob-target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 4" id="mob-target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    
-                    <a-entity mindar-image-target="targetIndex: 5" id="mob-target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 6" id="mob-target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 7" id="mob-target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 8" id="mob-target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 9" id="mob-target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-
-                    <a-entity mindar-image-target="targetIndex: 10" id="mob-target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 11" id="mob-target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 12" id="mob-target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 13" id="mob-target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                    <a-entity mindar-image-target="targetIndex: 14" id="mob-target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-                </a-scene>
+                <!-- a-scene 會在這個畫面真正顯示之後，由 script.js 動態插入，
+                     避免在畫面還是 display:none 的狀態下就初始化相機，導致灰畫面 -->
             </div>
 
-            <!-- 強制相機啟動按鈕（專門用來打破 iOS 權限限制） -->
+            <!-- 強制相機啟動按鈕（用來符合手機瀏覽器要求「使用者手動點擊」才能授權相機） -->
             <div id="camera-trigger-box" style="margin-bottom: 10px; text-align: center;">
                 <button class="primary-btn" onclick="forceStartMobileCamera()" style="background-color: #e67e22; font-size: 14px; padding: 10px;">📸 點擊這裡授權並啟動手機相機</button>
             </div>
