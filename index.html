@@ -9,39 +9,6 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-    <style>
-        .ar-container {
-            width: 100%;
-            height: 60vh;
-            position: relative;
-            overflow: hidden;
-            border-radius: 12px;
-            margin-bottom: 12px;
-            background-color: #1e272e;
-        }
-        .ar-container video,
-        .ar-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover;
-        }
-        .task-content {
-            max-height: 45vh;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-        /* 讓手機端的教學排版更清晰、有層次 */
-        .tutorial-card {
-            background: #f8f9fa;
-            border: 1px solid #dfe6e9;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: left;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            margin-bottom: 15px;
-        }
-    </style>
 </head>
 <body>
     <div id="app">
@@ -93,7 +60,7 @@
             <button class="primary-btn" onclick="goToTutorial()" style="margin-top: 20px;">進入基礎教學</button>
         </div>
 
-        <!-- 【完整詳細版】基礎教學 (10 頁詳細排版) -->
+        <!-- 基礎教學 (10 頁詳細排版) -->
         <div id="screen-tutorial" class="screen">
             <div class="progress-badge" id="tutorial-progress" style="background-color: #2980b9;">教學單元 1 / 10</div>
             <h2 id="tutorial-title" style="margin-bottom: 12px; font-size: 18px; color: #2c3e50;">標題載入中...</h2>
@@ -108,7 +75,7 @@
             </div>
         </div>
 
-        <!-- 手機 AR 掃描配對頁（教學結束後顯示） -->
+        <!-- 手機 AR 掃描配對頁 -->
         <div id="screen-ar-pairing" class="screen">
             <h2>📱 準備進入 AR 實體卡片探索</h2>
             <div class="content-text" style="text-align: center; padding: 5px 0;">
@@ -119,16 +86,46 @@
             <button class="primary-btn" onclick="startTask1()" style="margin-top: 5px; font-size: 12px; padding: 6px;">[電腦端測試] 直接在電腦檢視任務</button>
         </div>
 
-        <!-- 【手機專屬畫面】純 AR 掃描器 -->
+        <!-- 【手機專屬畫面】純 AR 掃描器 (靜態 A-Scene 確保版面與相機穩定) -->
         <div id="screen-mobile-ar" class="screen">
             <div class="progress-badge" id="mobile-task-badge" style="background-color: #27ae60;">📱 手機專屬 AR 掃描器</div>
             
-            <div class="ar-container" id="mobile-ar-wrapper">
-                <!-- a-scene 會在進入這個畫面之後，由 script.js 插入。
-                     結構與設定完全比照已驗證成功的 webAR-test.html -->
+            <div class="ar-container">
+                <a-scene 
+                    id="ar-scene-mobile"
+                    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: yes; uiError: yes; uiScanning: yes;" 
+                    color-space="sRGB" 
+                    embedded 
+                    renderer="colorManagement: true, physicallyCorrectLights" 
+                    vr-mode-ui="enabled: false" 
+                    device-orientation-permission-ui="enabled: false">
+                    
+                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+                    <!-- Task 1 Targets (0-4) -->
+                    <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 2" id="mob-target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 3" id="mob-target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 4" id="mob-target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+
+                    <!-- Task 2 Targets (5-9) -->
+                    <a-entity mindar-image-target="targetIndex: 5" id="mob-target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 6" id="mob-target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 7" id="mob-target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 8" id="mob-target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 9" id="mob-target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+
+                    <!-- Task 3 Targets (10-14) -->
+                    <a-entity mindar-image-target="targetIndex: 10" id="mob-target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 11" id="mob-target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 12" id="mob-target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 13" id="mob-target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                    <a-entity mindar-image-target="targetIndex: 14" id="mob-target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+                </a-scene>
             </div>
 
-            <!-- 相機重試按鈕：預設隱藏，只有在相機沒有成功啟動時才會出現 -->
+            <!-- 相機重試按鈕 -->
             <div id="camera-trigger-box" style="margin-bottom: 10px; text-align: center; display: none;">
                 <button class="primary-btn" onclick="forceStartMobileCamera()" style="background-color: #e67e22; font-size: 14px; padding: 10px;">🔄 重新啟動相機</button>
             </div>
