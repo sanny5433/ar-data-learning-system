@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDEkhWQ7d20DdBxH2FVcCZFfivFPTbKqH8",
@@ -17,6 +17,7 @@ function goToScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => screen.classList.remove('active'));
     
+    // 如果離開手機 AR 畫面，安全停止 MindAR 鏡頭
     if (screenId !== 'screen-mobile-ar') {
         const sceneEl = document.getElementById('ar-scene-mobile');
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
@@ -46,7 +47,6 @@ let scannedCardsByTask = {
 
 let cardScanDetails = {}; 
 let recordSaveCounts = { task1: 0, task2: 0, task3: 0 };
-let activeScanUnsubscribe = null;
 
 const requiredCards = {
     task1: ['T1-Card01', 'T1-Card02', 'T1-Card03', 'T1-Card04', 'T1-Card05'],
@@ -86,6 +86,9 @@ window.addEventListener('DOMContentLoaded', () => {
             }, 400);
         }
     }
+
+    // 初始化手機 AR 實體卡片目標監聽器
+    initMobileTargetListeners();
 });
 
 window.startSession = async function() {
@@ -133,36 +136,14 @@ window.startSession = async function() {
 }
 
 /* ======================================================
-   【手機 WebAR 動態場景注入與相機啟動】
+   【手機 WebAR 相機啟動與 AR 監聽】
    ====================================================== */
 
-const mobileARSceneTemplate = `
-<a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: yes; uiError: yes; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 2" id="mob-target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 3" id="mob-target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 4" id="mob-target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+let arListenersInitialized = false;
 
-    <a-entity mindar-image-target="targetIndex: 5" id="mob-target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 6" id="mob-target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 7" id="mob-target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 8" id="mob-target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 9" id="mob-target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-
-    <a-entity mindar-image-target="targetIndex: 10" id="mob-target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 11" id="mob-target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 12" id="mob-target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 13" id="mob-target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 14" id="mob-target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-</a-scene>
-`;
-
-function ensureMobileARScene() {
-    const wrapper = document.getElementById('mobile-ar-wrapper');
-    if (!wrapper) return;
-    wrapper.innerHTML = mobileARSceneTemplate;
+function initMobileTargetListeners() {
+    if (arListenersInitialized) return;
+    arListenersInitialized = true;
 
     for (let i = 0; i < 15; i++) {
         const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
@@ -184,11 +165,16 @@ function ensureMobileARScene() {
     if (sceneEl) {
         sceneEl.addEventListener('arReady', () => {
             const statusEl = document.getElementById('mobile-scan-status');
-            if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
+            const triggerBox = document.getElementById('camera-trigger-box');
+            if (statusEl) statusEl.innerHTML = `📸 相機已啟動 (AR_READY)，請將鏡頭對準實體卡片`;
+            if (triggerBox) triggerBox.style.display = 'none';
         });
+
         sceneEl.addEventListener('arError', () => {
             const statusEl = document.getElementById('mobile-scan-status');
-            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗，請重新整理`;
+            const triggerBox = document.getElementById('camera-trigger-box');
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗 (arError)，請點擊下方按鈕重試`;
+            if (triggerBox) triggerBox.style.display = 'block';
         });
     }
 }
@@ -197,237 +183,62 @@ window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     const badge = document.getElementById('mobile-task-badge');
     const statusEl = document.getElementById('mobile-scan-status');
+    const triggerBox = document.getElementById('camera-trigger-box');
 
     if (badge) badge.innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
     if (statusEl) statusEl.innerHTML = `🔄 正在初始化相機，請允許相機權限...`;
+    if (triggerBox) triggerBox.style.display = 'none';
 
-    ensureMobileARScene();
-
+    // 確保 DOM 畫面完全切換並完成 Layout Reflow 後，才啟動 MindAR
     setTimeout(() => {
         const sceneEl = document.getElementById('ar-scene-mobile');
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
             try {
+                sceneEl.systems["mindar-image-system"].stop();
+            } catch (e) {}
+
+            try {
                 sceneEl.systems["mindar-image-system"].start();
             } catch (err) {
                 if (statusEl) statusEl.innerHTML = `❌ 啟動失敗: ${err.message}`;
+                if (triggerBox) triggerBox.style.display = 'block';
             }
+        } else {
+            if (statusEl) statusEl.innerHTML = `❌ A-Frame 或 MindAR 尚未載入`;
+            if (triggerBox) triggerBox.style.display = 'block';
         }
-    }, 300);
+    }, 250);
+}
+
+window.forceStartMobileCamera = function() {
+    const sceneEl = document.getElementById('ar-scene-mobile');
+    const statusEl = document.getElementById('mobile-scan-status');
+    const triggerBox = document.getElementById('camera-trigger-box');
+
+    if (statusEl) statusEl.innerHTML = `🔄 正在重新啟動相機...`;
+    if (triggerBox) triggerBox.style.display = 'none';
+
+    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+        try {
+            sceneEl.systems["mindar-image-system"].stop();
+        } catch (e) {}
+
+        setTimeout(() => {
+            try {
+                sceneEl.systems["mindar-image-system"].start();
+            } catch (err) {
+                if (statusEl) statusEl.innerHTML = `❌ 重試失敗: ${err.message}`;
+                if (triggerBox) triggerBox.style.display = 'block';
+            }
+        }, 150);
+    }
 }
 
 window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-window.scanARCard = function(taskId, cardId, cardDescription) {
-    if (!scannedCardsByTask[taskId].has(cardId)) {
-        scannedCardsByTask[taskId].add(cardId);
-    }
-
-    if (!cardScanDetails[cardId]) {
-        cardScanDetails[cardId] = { scanCount: 0, firstScanTime: new Date().toISOString(), lastScanTime: null };
-    }
-    cardScanDetails[cardId].scanCount++;
-    cardScanDetails[cardId].lastScanTime = new Date().toISOString();
-
-    const basePath = getParticipantDocRef();
-    const taskScanRef = doc(basePath, "arScans", taskId);
-    setDoc(taskScanRef, {
-        sessionId: currentSessionId || localStorage.getItem('ar_sessionId'),
-        [cardId]: {
-            scanCount: cardScanDetails[cardId].scanCount,
-            firstScanTime: cardScanDetails[cardId].firstScanTime,
-            lastScanTime: cardScanDetails[cardId].lastScanTime,
-            updatedAt: new Date().toISOString()
-        }
-    }, { merge: true }).catch(err => console.error(err));
-}
-
-// 電腦端即時監聽 Firestore 的 arScans 狀態，讓電腦端完美跟隨手機掃描進度！
-function listenToTaskScans(taskId) {
-    if (activeScanUnsubscribe) {
-        activeScanUnsubscribe();
-        activeScanUnsubscribe = null;
-    }
-    const scanRef = doc(db, "participants", getParticipantDocId(), "arScans", taskId);
-    activeScanUnsubscribe = onSnapshot(scanRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            const cardKeys = Object.keys(data).filter(k => k.startsWith(taskId.toUpperCase()));
-            scannedCardsByTask[taskId] = new Set(cardKeys);
-            
-            const scannedCount = scannedCardsByTask[taskId].size;
-            const totalCount = requiredCards[taskId].length;
-            const statusMsg = `📱 手機 AR 掃描狀態：已同步 (已探索 ${scannedCount}/${totalCount} 張卡片)`;
-            
-            if (taskId === 'task1') {
-                const el = document.getElementById('ar-scan-result-1');
-                if (el) el.innerHTML = statusMsg;
-            } else if (taskId === 'task2') {
-                const el = document.getElementById('ar-scan-result-2');
-                if (el) el.innerHTML = statusMsg;
-            } else if (taskId === 'task3') {
-                const el = document.getElementById('ar-scan-result-3');
-                if (el) el.innerHTML = statusMsg;
-            }
-
-            if (scannedCount >= totalCount) {
-                unlockTaskQuestions(taskId);
-            }
-        }
-    });
-}
-
-function unlockTaskQuestions(taskId) {
-    const banner = document.getElementById(`${taskId}-lock-banner`);
-    const area = document.getElementById(`${taskId}-questions-area`);
-    if (banner && area) {
-        banner.style.backgroundColor = "#27ae60";
-        banner.innerHTML = "🔓 所有實體卡片已透過鏡頭全數掃描完畢！題目已解鎖。";
-        area.style.opacity = "1";
-        area.style.pointerEvents = "auto";
-    }
-}
-
-window.saveTaskRecord = function(taskId) {
-    if (recordSaveCounts[taskId] >= 3) {
-        alert('⚠️ 每個任務的資料紀錄最多只能儲存 3 次！');
-        return;
-    }
-
-    const textEl = document.getElementById(`${taskId}-record-text`);
-    if (!textEl) return;
-    const recordText = textEl.value.trim();
-    if (!recordText) {
-        alert('請先輸入一些資料紀錄再儲存！');
-        return;
-    }
-
-    recordSaveCounts[taskId]++;
-    const currentCount = recordSaveCounts[taskId];
-    const recordId = `record_${currentCount}`;
-
-    const basePath = getParticipantDocRef();
-    const recordRef = doc(basePath, "records", taskId, "history", recordId);
-    setDoc(recordRef, {
-        recordId,
-        recordText,
-        savedSequence: currentCount,
-        savedAt: serverTimestamp()
-    }, { merge: true }).then(() => {
-        alert(`💾 Task ${taskId.replace('task', '')} 第 ${currentCount} 次資料紀錄儲存成功！`);
-    }).catch(err => console.error(err));
-}
-
-const task1Questions = [
-    { qId: "t1_q1", q: "根據掃描的 5 張交易小卡，總共有幾位同學（幾筆交易）？", options: ["A. 3筆", "B. 4筆", "C. 5筆", "D. 6筆"], ans: "C" },
-    { qId: "t1_q2", q: "在這 5 筆交易中，總共有幾筆交易包含「麵包」？", options: ["A. 2筆", "B. 3筆", "C. 4筆", "D. 5筆"], ans: "C" },
-    { qId: "t1_q3", q: "在這 5 筆交易中，總共有幾筆交易同時包含「麵包」與「牛奶」？", options: ["A. 1筆", "B. 2筆", "C. 3筆", "D. 4筆"], ans: "C" },
-    { qId: "t1_q4", q: "「麵包 ＋ 牛奶」同時出現的支援度（Support）計算公式為何？", options: ["A. 包含麵包牛奶的交易數 ÷ 總交易數", "B. 總交易數 ÷ 包含麵包牛奶數", "C. 只有麵包數 ÷ 總數", "D. 隨機猜測"], ans: "A" },
-    { qId: "t1_q5", q: "根據上述資料與計算，「麵包 ＋ 牛奶」的支援度數值為多少？", options: ["A. 20%", "B. 40%", "C. 60%", "D. 80%"], ans: "C" }
-];
-
-window.startTask1 = function() {
-    goToScreen('screen-task1');
-    taskStartTime = Date.now();
-    renderTaskQuestions('task1', task1Questions);
-    listenToTaskScans('task1');
-    setDoc(getParticipantDocRef(), { currentStage: "task1" }, { merge: true }).catch(err => err);
-}
-
-const task2Questions = [
-    { qId: "t2_q1", q: "根據 Task 2 掃描的 5 張小卡，總共買了幾次「麵包」？", options: ["A. 2次", "B. 3次", "C. 4次", "D. 5次"], ans: "C" },
-    { qId: "t2_q2", q: "在所有購買「麵包」的交易中，同時也購買「牛奶」的次數是多少？", options: ["A. 1次", "B. 2次", "C. 3次", "D. 4次"], ans: "C" },
-    { qId: "t2_q3", q: "條件機率（信心度 Confidence：麵包 ➔ 牛奶）的正確計算方式為？", options: ["A. 買麵包又買牛奶 ÷ 買麵包總次數", "B. 買牛奶 ÷ 總次數", "C. 總次數 ÷ 買麵包", "D. 隨機"], ans: "A" },
-    { qId: "t2_q4", q: "根據卡片資料，信心度（麵包 ➔ 牛奶）數值是多少？", options: ["A. 50%", "B. 60%", "C. 75%", "D. 100%"], ans: "C" },
-    { qId: "t2_q5", q: "若信心度高達 75%，代表這兩項商品在實務商業上具有什麼意義？", options: ["A. 毫無關係", "B. 顧客買麵包時，有很高機率會順便買牛奶", "C. 應該馬上停售牛奶", "D. 兩者互斥"], ans: "B" }
-];
-
-window.startTask2 = function() {
-    goToScreen('screen-task2');
-    taskStartTime = Date.now();
-    renderTaskQuestions('task2', task2Questions);
-    listenToTaskScans('task2');
-    setDoc(getParticipantDocRef(), { currentStage: "task2" }, { merge: true }).catch(err => err);
-}
-
-const task3Questions = [
-    { qId: "t3_q1", q: "根據 Task 3 掃描的趨勢卡（Card 01），麵包與牛奶近期的銷售趨勢為何？", options: ["A. 持續下降", "B. 維持不變", "C. 持續成長", "D. 完全沒有人買"], ans: "C" },
-    { qId: "t3_q2", q: "根據庫存卡（Card 03 與 04），目前麵包與牛奶的庫存狀態如何？", options: ["A. 非常充足", "B. 庫存偏低且有缺貨風險", "C. 庫存過多導致爆倉", "D. 沒有記錄"], ans: "B" },
-    { qId: "t3_q3", q: "根據週末人潮預報卡（Card 05），預估本週末的客流量將有什麼變化？", options: ["A. 減少 50%", "B. 不變", "C. 增加 50%", "D. 店面休業"], ans: "C" },
-    { qId: "t3_q4", q: "結合銷售趨勢、商品高關聯與低庫存數據，管理者最應採取何種行動？", options: ["A. 憑直覺減少進貨", "B. 根據數據優先增加麵包與牛奶的備貨量以迎接週末", "C. 隨機調漲價格", "D. 不作任何處理"], ans: "B" },
-    { qId: "t3_q5", q: "下列何者最符合「資料導向決策（Data-Driven Decision Making）」的核心精神？", options: ["A. 依主管個人喜好決定", "B. 依據客觀數據與趨勢分析來做商業判斷", "C. 擲骰子決定", "D. 模仿競爭對手不管自家數據"], ans: "B" }
-];
-
-window.startTask3 = function() {
-    goToScreen('screen-task3');
-    taskStartTime = Date.now();
-    renderTaskQuestions('task3', task3Questions);
-    listenToTaskScans('task3');
-    setDoc(getParticipantDocRef(), { currentStage: "task3" }, { merge: true }).catch(err => err);
-}
-
-function renderTaskQuestions(taskId, qList) {
-    const container = document.getElementById(`${taskId}-q-list`);
-    container.innerHTML = "";
-
-    qList.forEach((qObj, idx) => {
-        let html = `<div style="margin-bottom: 8px; border-bottom: 1px dashed #dcdde1; padding-bottom: 5px; text-align: left;">` +
-                   `<p style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">Q${idx + 1}. ${qObj.q}</p>`;
-        qObj.options.forEach(opt => {
-            const optLetter = opt.charAt(0);
-            html += `<label style="display: block; font-size: 11px; margin-left: 8px; cursor: pointer;">` +
-                    `<input type="radio" name="${taskId}-${qObj.qId}" value="${optLetter}"> ${opt}</label>`;
-        });
-        html += `</div>`;
-        container.innerHTML += html;
-    });
-}
-
-window.submitTaskQuestions = function(taskId) {
-    let qList = taskId === 'task1' ? task1Questions : (taskId === 'task2' ? task2Questions : task3Questions);
-    let allAnswered = true;
-    let userAnswers = {};
-
-    qList.forEach(qObj => {
-        const selected = document.querySelector(`input[name="${taskId}-${qObj.qId}"]:checked`);
-        if (!selected) allAnswered = false;
-        else userAnswers[qObj.qId] = selected.value;
-    });
-
-    if (!allAnswered) {
-        alert('請完整回答完本任務的所有 5 道題目再提交！');
-        return;
-    }
-
-    const durationSec = parseFloat(((Date.now() - taskStartTime) / 1000).toFixed(2));
-    let correctCount = 0;
-    let answersObj = {};
-
-    qList.forEach(qObj => {
-        const userAns = userAnswers[qObj.qId];
-        const isCorrect = userAns === qObj.ans;
-        if (isCorrect) correctCount++;
-        answersObj[qObj.qId] = { selectedAnswer: userAns, correctAnswer: qObj.ans, isCorrect: isCorrect };
-    });
-
-    const basePath = getParticipantDocRef();
-    setDoc(doc(basePath, "taskAnswers", taskId), {
-        taskId, answers: answersObj, correctCount, totalQuestions: qList.length, taskDurationSec: durationSec, submittedAt: serverTimestamp()
-    }, { merge: true }).catch(err => console.error(err));
-
-    setDoc(doc(basePath, "tasks", taskId), {
-        taskId, isCompleted: true, correctCount, totalQuestions: qList.length, taskDurationSec: durationSec, completedAt: serverTimestamp()
-    }, { merge: true }).catch(err => console.error(err));
-
-    alert(`${taskId.toUpperCase()} 提交成功！答對 ${correctCount} / 5 題`);
-
-    if (taskId === 'task1') startTask2();
-    else if (taskId === 'task2') startTask3();
-    else startPostTest();
-}
-
-// 【完整 10 頁詳細基礎教學】
+// 【教科書級別完整 10 頁詳細基礎教學】
 const tutorialPages = [
     {
         title: "1. 什麼是關聯規則（Association Rules）？",
@@ -596,6 +407,7 @@ window.nextTutorialPage = function() {
 
 function showARPairingScreen() {
     goToScreen('screen-ar-pairing');
+    
     const baseUrl = window.location.origin + window.location.pathname;
     const pairingUrl = `${baseUrl}?session=${encodeURIComponent(sessionPrefix)}&participant=${encodeURIComponent(currentParticipantId)}&sessionId=${currentSessionId}&mode=ar`;
 
@@ -609,6 +421,188 @@ function showARPairingScreen() {
         colorLight: "#ffffff",
         correctLevel: QRCode.CorrectLevel.H
     });
+}
+
+window.scanARCard = function(taskId, cardId, cardDescription) {
+    if (!scannedCardsByTask[taskId].has(cardId)) {
+        scannedCardsByTask[taskId].add(cardId);
+    }
+
+    if (!cardScanDetails[cardId]) {
+        cardScanDetails[cardId] = { scanCount: 0, firstScanTime: new Date().toISOString(), lastScanTime: null };
+    }
+    cardScanDetails[cardId].scanCount++;
+    cardScanDetails[cardId].lastScanTime = new Date().toISOString();
+
+    const scannedCount = scannedCardsByTask[taskId].size;
+    const totalCount = requiredCards[taskId].length;
+
+    const statusMsg = `📱 手機 AR 掃描狀態：${cardDescription} (已探索 ${scannedCount}/${totalCount} 張卡片)`;
+    if (taskId === 'task1') document.getElementById('ar-scan-result-1').innerHTML = statusMsg;
+    else if (taskId === 'task2') document.getElementById('ar-scan-result-2').innerHTML = statusMsg;
+    else if (taskId === 'task3') document.getElementById('ar-scan-result-3').innerHTML = statusMsg;
+
+    if (scannedCount === totalCount) {
+        unlockTaskQuestions(taskId);
+    }
+
+    const basePath = getParticipantDocRef();
+    const taskScanRef = doc(basePath, "arScans", taskId);
+    setDoc(taskScanRef, {
+        sessionId: currentSessionId || localStorage.getItem('ar_sessionId'),
+        [cardId]: {
+            scanCount: cardScanDetails[cardId].scanCount,
+            firstScanTime: cardScanDetails[cardId].firstScanTime,
+            lastScanTime: cardScanDetails[cardId].lastScanTime,
+            updatedAt: new Date().toISOString()
+        }
+    }, { merge: true }).catch(err => console.error(err));
+}
+
+function unlockTaskQuestions(taskId) {
+    const banner = document.getElementById(`${taskId}-lock-banner`);
+    const area = document.getElementById(`${taskId}-questions-area`);
+    if (banner && area) {
+        banner.style.backgroundColor = "#27ae60";
+        banner.innerHTML = "🔓 所有實體卡片已透過鏡頭全數掃描完畢！題目已解鎖。";
+        area.style.opacity = "1";
+        area.style.pointerEvents = "auto";
+    }
+}
+
+window.saveTaskRecord = function(taskId) {
+    if (recordSaveCounts[taskId] >= 3) {
+        alert('⚠️ 每個任務的資料紀錄最多只能儲存 3 次！');
+        return;
+    }
+
+    const textEl = document.getElementById(`${taskId}-record-text`);
+    if (!textEl) return;
+    const recordText = textEl.value.trim();
+    if (!recordText) {
+        alert('請先輸入一些資料紀錄再儲存！');
+        return;
+    }
+
+    recordSaveCounts[taskId]++;
+    const currentCount = recordSaveCounts[taskId];
+    const recordId = `record_${currentCount}`;
+
+    const basePath = getParticipantDocRef();
+    const recordRef = doc(basePath, "records", taskId, "history", recordId);
+    setDoc(recordRef, {
+        recordId,
+        recordText,
+        savedSequence: currentCount,
+        savedAt: serverTimestamp()
+    }, { merge: true }).then(() => {
+        alert(`💾 Task ${taskId.replace('task', '')} 第 ${currentCount} 次資料紀錄儲存成功！`);
+    }).catch(err => console.error(err));
+}
+
+const task1Questions = [
+    { qId: "t1_q1", q: "根據掃描的 5 張交易小卡，總共有幾位同學（幾筆交易）？", options: ["A. 3筆", "B. 4筆", "C. 5筆", "D. 6筆"], ans: "C" },
+    { qId: "t1_q2", q: "在這 5 筆交易中，總共有幾筆交易包含「麵包」？", options: ["A. 2筆", "B. 3筆", "C. 4筆", "D. 5筆"], ans: "C" },
+    { qId: "t1_q3", q: "在這 5 筆交易中，總共有幾筆交易同時包含「麵包」與「牛奶」？", options: ["A. 1筆", "B. 2筆", "C. 3筆", "D. 4筆"], ans: "C" },
+    { qId: "t1_q4", q: "「麵包 ＋ 牛奶」同時出現的支援度（Support）計算公式為何？", options: ["A. 包含麵包牛奶的交易數 ÷ 總交易數", "B. 總交易數 ÷ 包含麵包牛奶數", "C. 只有麵包數 ÷ 總數", "D. 隨機猜測"], ans: "A" },
+    { qId: "t1_q5", q: "根據上述資料與計算，「麵包 ＋ 牛奶」的支援度數值為多少？", options: ["A. 20%", "B. 40%", "C. 60%", "D. 80%"], ans: "C" }
+];
+
+window.startTask1 = function() {
+    goToScreen('screen-task1');
+    taskStartTime = Date.now();
+    renderTaskQuestions('task1', task1Questions);
+    setDoc(getParticipantDocRef(), { currentStage: "task1" }, { merge: true }).catch(err => err);
+}
+
+const task2Questions = [
+    { qId: "t2_q1", q: "根據 Task 2 掃描的 5 張小卡，總共買了幾次「麵包」？", options: ["A. 2次", "B. 3次", "C. 4次", "D. 5次"], ans: "C" },
+    { qId: "t2_q2", q: "在所有購買「麵包」的交易中，同時也購買「牛奶」的次數是多少？", options: ["A. 1次", "B. 2次", "C. 3次", "D. 4次"], ans: "C" },
+    { qId: "t2_q3", q: "條件機率（信心度 Confidence：麵包 ➔ 牛奶）的正確計算方式為？", options: ["A. 買麵包又買牛奶 ÷ 買麵包總次數", "B. 買牛奶 ÷ 總次數", "C. 總次數 ÷ 買麵包", "D. 隨機"], ans: "A" },
+    { qId: "t2_q4", q: "根據卡片資料，信心度（麵包 ➔ 牛奶）數值是多少？", options: ["A. 50%", "B. 60%", "C. 75%", "D. 100%"], ans: "C" },
+    { qId: "t2_q5", q: "若信心度高達 75%，代表這兩項商品在實務商業上具有什麼意義？", options: ["A. 毫無關係", "B. 顧客買麵包時，有很高機率會順便買牛奶", "C. 應該馬上停售牛奶", "D. 兩者互斥"], ans: "B" }
+];
+
+window.startTask2 = function() {
+    goToScreen('screen-task2');
+    taskStartTime = Date.now();
+    renderTaskQuestions('task2', task2Questions);
+    setDoc(getParticipantDocRef(), { currentStage: "task2" }, { merge: true }).catch(err => err);
+}
+
+const task3Questions = [
+    { qId: "t3_q1", q: "根據 Task 3 掃描的趨勢卡（Card 01），麵包與牛奶近期的銷售趨勢為何？", options: ["A. 持續下降", "B. 維持不變", "C. 持續成長", "D. 完全沒有人買"], ans: "C" },
+    { qId: "t3_q2", q: "根據庫存卡（Card 03 與 04），目前麵包與牛奶的庫存狀態如何？", options: ["A. 非常充足", "B. 庫存偏低且有缺貨風險", "C. 庫存過多導致爆倉", "D. 沒有記錄"], ans: "B" },
+    { qId: "t3_q3", q: "根據週末人潮預報卡（Card 05），預估本週末的客流量將有什麼變化？", options: ["A. 減少 50%", "B. 不變", "C. 增加 50%", "D. 店面休業"], ans: "C" },
+    { qId: "t3_q4", q: "結合銷售趨勢、商品高關聯與低庫存數據，管理者最應採取何種行動？", options: ["A. 憑直覺減少進貨", "B. 根據數據優先增加麵包與牛奶的備貨量以迎接週末", "C. 隨機調漲價格", "D. 不作任何處理"], ans: "B" },
+    { qId: "t3_q5", q: "下列何者最符合「資料導向決策（Data-Driven Decision Making）」的核心精神？", options: ["A. 依主管個人喜好決定", "B. 依據客觀數據與趨勢分析來做商業判斷", "C. 擲骰子決定", "D. 模仿競爭對手不管自家數據"], ans: "B" }
+];
+
+window.startTask3 = function() {
+    goToScreen('screen-task3');
+    taskStartTime = Date.now();
+    renderTaskQuestions('task3', task3Questions);
+    setDoc(getParticipantDocRef(), { currentStage: "task3" }, { merge: true }).catch(err => err);
+}
+
+function renderTaskQuestions(taskId, qList) {
+    const container = document.getElementById(`${taskId}-q-list`);
+    container.innerHTML = "";
+
+    qList.forEach((qObj, idx) => {
+        let html = `<div style="margin-bottom: 8px; border-bottom: 1px dashed #dcdde1; padding-bottom: 5px; text-align: left;">` +
+                   `<p style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">Q${idx + 1}. ${qObj.q}</p>`;
+        qObj.options.forEach(opt => {
+            const optLetter = opt.charAt(0);
+            html += `<label style="display: block; font-size: 11px; margin-left: 8px; cursor: pointer;">` +
+                    `<input type="radio" name="${taskId}-${qObj.qId}" value="${optLetter}"> ${opt}</label>`;
+        });
+        html += `</div>`;
+        container.innerHTML += html;
+    });
+}
+
+window.submitTaskQuestions = function(taskId) {
+    let qList = taskId === 'task1' ? task1Questions : (taskId === 'task2' ? task2Questions : task3Questions);
+    let allAnswered = true;
+    let userAnswers = {};
+
+    qList.forEach(qObj => {
+        const selected = document.querySelector(`input[name="${taskId}-${qObj.qId}"]:checked`);
+        if (!selected) allAnswered = false;
+        else userAnswers[qObj.qId] = selected.value;
+    });
+
+    if (!allAnswered) {
+        alert('請完整回答完本任務的所有 5 道題目再提交！');
+        return;
+    }
+
+    const durationSec = parseFloat(((Date.now() - taskStartTime) / 1000).toFixed(2));
+    let correctCount = 0;
+    let answersObj = {};
+
+    qList.forEach(qObj => {
+        const userAns = userAnswers[qObj.qId];
+        const isCorrect = userAns === qObj.ans;
+        if (isCorrect) correctCount++;
+        answersObj[qObj.qId] = { selectedAnswer: userAns, correctAnswer: qObj.ans, isCorrect: isCorrect };
+    });
+
+    const basePath = getParticipantDocRef();
+    setDoc(doc(basePath, "taskAnswers", taskId), {
+        taskId, answers: answersObj, correctCount, totalQuestions: qList.length, taskDurationSec: durationSec, submittedAt: serverTimestamp()
+    }, { merge: true }).catch(err => console.error(err));
+
+    setDoc(doc(basePath, "tasks", taskId), {
+        taskId, isCompleted: true, correctCount, totalQuestions: qList.length, taskDurationSec: durationSec, completedAt: serverTimestamp()
+    }, { merge: true }).catch(err => console.error(err));
+
+    alert(`${taskId.toUpperCase()} 提交成功！答對 ${correctCount} / 5 題`);
+
+    if (taskId === 'task1') startTask2();
+    else if (taskId === 'task2') startTask3();
+    else startPostTest();
 }
 
 const preTestQuestionsList = [
@@ -692,6 +686,7 @@ function submitAllPreTestAnswers() {
         const isCorrect = ansData.selectedAnswer === q.correctAnswer;
         if (isCorrect) { correctCount++; score += 20; }
         else { wrongItems.push({ displayNum: index + 1, question: q.question, selectedAnswer: ansData.selectedAnswer || "未作答", correctAnswer: q.correctAnswer }); }
+
         answersObj[q.questionId] = { selectedAnswer: ansData.selectedAnswer, correctAnswer: q.correctAnswer, isCorrect: isCorrect, modifyCount: ansData.modifyCount };
     });
 
