@@ -132,18 +132,15 @@ window.startSession = async function() {
 }
 
 /* ======================================================
-   【手機 WebAR 診斷與相機啟動】
+   【手機 WebAR 相機啟動與顯示】相關程式碼
+   這次調整：版本改用 A-Frame 1.4.0 + MindAR 1.2.5（與你測試成功的
+   webAR-test.html 相同版本），並改用 autoStart:true，
+   讓相機在 AR 畫面顯示後「自動」啟動，不再需要先手動點擊按鈕。
+   按鈕保留，但只在自動啟動失敗時才會出現，作為「重試」用途。
    ====================================================== */
 
-let webARCurrentState = "INIT"; // INIT, CAMERA_STARTING, CAMERA_READY, MINDAR_STARTING, AR_READY, AR_ERROR
-let lastGetUserMediaStatus = "尚未執行";
-let lastGetUserMediaErrorName = "";
-let lastGetUserMediaErrorMessage = "";
-let permissionStateCache = "unknown";
-let targetsMindStatus = "尚未檢查";
-
 const mobileARSceneTemplate = `
-<a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+<a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: yes; uiError: yes; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
     <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
     <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
@@ -166,74 +163,8 @@ const mobileARSceneTemplate = `
 `;
 
 let mobileARSceneReady = false;
-let debugIntervalId = null;
-
-function updateWebARDebugPanel() {
-    const panel = document.getElementById('webar-debug-panel');
-    if (!panel) return;
-
-    // 1. Camera API
-    const hasCameraAPI = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    const cameraApiText = hasCameraAPI ? "正常" : "不存在";
-
-    // 4. video 元素是否存在
-    const videoEl = document.querySelector('.ar-container video') || document.querySelector('video');
-    const videoExists = !!videoEl;
-
-    // 5~7. video 狀態
-    const readyState = videoExists ? videoEl.readyState : "N/A";
-    const vWidth = videoExists ? videoEl.videoWidth : "N/A";
-    const vHeight = videoExists ? videoExists.videoHeight : "N/A";
-
-    // 8. video 是否真的在播放
-    const isPlaying = videoExists ? (!videoEl.paused && !videoEl.ended && videoEl.readyState > 2) : false;
-
-    // 13, 14. A-Frame scene
-    const sceneEl = document.getElementById('ar-scene-mobile');
-    const sceneExists = !!sceneEl;
-    const sceneLoaded = sceneExists ? sceneEl.hasLoaded : false;
-
-    panel.innerHTML = `
-        <div>🔧 <strong>WebAR 診斷資訊</strong></div>
-        <div>1. Camera API：${cameraApiText}</div>
-        <div>2. 相機權限：${permissionStateCache}</div>
-        <div>3. getUserMedia：${lastGetUserMediaStatus} ${lastGetUserMediaErrorName ? '('+lastGetUserMediaErrorName+': '+lastGetUserMediaErrorMessage+')' : ''}</div>
-        <div>4. video 元素：${videoExists ? '存在' : '不存在'}</div>
-        <div>5. video.readyState：${readyState}</div>
-        <div>6. video.width：${vWidth}</div>
-        <div>7. video.height：${vHeight}</div>
-        <div>8. Video playing：${isPlaying ? 'true' : 'false'}</div>
-        <div>9. MindAR 初始化：${webARCurrentState}</div>
-        <div>10. A-Frame scene 存在：${sceneExists ? '是' : '否'}</div>
-        <div>11. A-Frame scene loaded：${sceneLoaded ? 'true' : 'false'}</div>
-        <div>12. targets.mind 狀態：${targetsMindStatus}</div>
-        <div>📌 目前狀態：<strong>${webARCurrentState}</strong></div>
-    `;
-}
-
-// 每秒自動更新一次診斷面板數據
-function startDebugInterval() {
-    if (debugIntervalId) clearInterval(debugIntervalId);
-    debugIntervalId = setInterval(updateWebARDebugPanel, 1000);
-}
-
-// 檢查瀏覽器權限狀態
-async function checkCameraPermission() {
-    if (navigator.permissions && navigator.permissions.query) {
-        try {
-            const result = await navigator.permissions.query({ name: 'camera' });
-            permissionStateCache = result.state; // granted, denied, prompt
-            result.onchange = () => {
-                permissionStateCache = result.state;
-                updateWebARDebugPanel();
-            };
-        } catch (e) {
-            permissionStateCache = "prompt/unknown";
-        }
-    } else {
-        permissionStateCache = "unsupported";
-    }
-}
+let mobileARReadyFired = false;
+let mobileARStartTimeoutId = null;
 
 function attachMobileTargetListeners() {
     for (let i = 0; i < 15; i++) {
@@ -244,14 +175,10 @@ function attachMobileTargetListeners() {
         if (mobEl && !mobEl.dataset.listenerAttached) {
             mobEl.dataset.listenerAttached = "true";
             mobEl.addEventListener("targetFound", () => {
-                webARCurrentState = "AR_READY";
+                mobileARReadyFired = true;
+                clearTimeout(mobileARStartTimeoutId);
                 scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
-                document.getElementById('mobile-scan-status').innerHTML = `🎯 成功辨識卡片：<strong>${cardId}</strong>`;
-                updateWebARDebugPanel();
-            });
-
-            mobEl.addEventListener("targetLost", () => {
-                document.getElementById('mobile-scan-status').innerHTML = `卡片暫時離開畫面`;
+                document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
             });
         }
     }
@@ -262,161 +189,116 @@ function ensureMobileARScene() {
     const wrapper = document.getElementById('mobile-ar-wrapper');
     if (!wrapper) return;
 
-    webARCurrentState = "INIT";
+    // 這時候 #screen-mobile-ar 已經是可見狀態，才把 a-scene 插入 DOM，
+    // 避免在隱藏容器裡初始化導致相機畫面尺寸算錯。
     wrapper.innerHTML = mobileARSceneTemplate;
     mobileARSceneReady = true;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
-    if (sceneEl) {
-        const onLoaded = () => {
-            attachMobileTargetListeners();
-            if (typeof sceneEl.resize === 'function') {
-                try { sceneEl.resize(); } catch (e) {}
-            }
-            updateWebARDebugPanel();
-        };
+    if (!sceneEl) return;
 
-        if (sceneEl.hasLoaded) {
-            onLoaded();
-        } else {
-            sceneEl.addEventListener('loaded', onLoaded);
+    const statusEl = document.getElementById('mobile-scan-status');
+    const triggerBox = document.getElementById('camera-trigger-box');
+
+    if (statusEl) statusEl.innerHTML = `📸 正在啟動相機，請稍候...`;
+    if (triggerBox) triggerBox.style.display = 'none';
+
+    const onLoaded = () => {
+        attachMobileTargetListeners();
+        if (typeof sceneEl.resize === 'function') {
+            try { sceneEl.resize(); } catch (e) {}
         }
-
-        // MindAR arReady 事件
-        sceneEl.addEventListener('arReady', () => {
-            webARCurrentState = "AR_READY";
-            const statusEl = document.getElementById('mobile-scan-status');
-            if (statusEl) statusEl.innerHTML = `✅ WebAR 已成功啟動，請將手機對準實體卡片`;
-            if (typeof sceneEl.resize === 'function') {
-                try { sceneEl.resize(); } catch (e) {}
-            }
-            updateWebARDebugPanel();
-        });
-
-        // MindAR arError 事件
-        sceneEl.addEventListener('arError', (evt) => {
-            webARCurrentState = "AR_ERROR";
-            const triggerBox = document.getElementById('camera-trigger-box');
-            const statusEl = document.getElementById('mobile-scan-status');
-            const detail = (evt && evt.detail) ? JSON.stringify(evt.detail) : '未知錯誤';
-            if (statusEl) {
-                statusEl.innerHTML = `❌ WebAR 啟動失敗<br>錯誤內容：${detail}`;
-            }
-            if (triggerBox) triggerBox.style.display = 'block';
-            updateWebARDebugPanel();
-        });
+    };
+    if (sceneEl.hasLoaded) {
+        onLoaded();
+    } else {
+        sceneEl.addEventListener('loaded', onLoaded);
     }
+
+    // MindAR 真正啟動成功（相機畫面真的出現）時會觸發 arReady
+    sceneEl.addEventListener('arReady', () => {
+        mobileARReadyFired = true;
+        clearTimeout(mobileARStartTimeoutId);
+        if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
+        if (triggerBox) triggerBox.style.display = 'none';
+        if (typeof sceneEl.resize === 'function') {
+            try { sceneEl.resize(); } catch (e) {}
+        }
+    });
+
+    // MindAR 啟動失敗時會觸發 arError，把真正原因顯示出來
+    sceneEl.addEventListener('arError', (evt) => {
+        clearTimeout(mobileARStartTimeoutId);
+        const detail = (evt && evt.detail) ? JSON.stringify(evt.detail) : '未知錯誤';
+        if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗（arError）：${detail}`;
+        if (triggerBox) triggerBox.style.display = 'block';
+    });
+
+    // autoStart:true 會自動嘗試啟動相機。
+    // 如果 8 秒內沒有收到 arReady（代表還沒真的顯示出畫面），才顯示重試按鈕。
+    mobileARReadyFired = false;
+    clearTimeout(mobileARStartTimeoutId);
+    mobileARStartTimeoutId = setTimeout(() => {
+        if (!mobileARReadyFired) {
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機尚未啟動成功，請點擊下方按鈕重試一次`;
+            if (triggerBox) triggerBox.style.display = 'block';
+        }
+    }, 8000);
 }
 
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
-    document.getElementById('mobile-scan-status').innerHTML = `📱 正在準備 Task ${taskNum} 鏡頭，請點擊下方按鈕授權相機！`;
-    
-    checkCameraPermission();
-    startDebugInterval();
 
-    // 等手機 AR 畫面真正顯示出來之後，再初始化 A-Frame / MindAR
-    setTimeout(ensureMobileARScene, 150);
+    // 等畫面真正切換為可見狀態之後，再建立 a-scene（只會在第一次進入時真正插入）
+    setTimeout(ensureMobileARScene, 100);
 }
 
+// 相機重試按鈕（只在自動啟動失敗、arError 或逾時才會顯示出來）
 window.forceStartMobileCamera = function() {
-    ensureMobileARScene();
-
     const triggerBox = document.getElementById('camera-trigger-box');
     const statusEl = document.getElementById('mobile-scan-status');
+    const sceneEl = document.getElementById('ar-scene-mobile');
 
-    if (triggerBox) triggerBox.style.display = 'none';
-    webARCurrentState = "CAMERA_STARTING";
-    if (statusEl) statusEl.innerHTML = `📸 正在請求相機權限與測試 getUserMedia...`;
-    updateWebARDebugPanel();
-
-    // 獨立測試 getUserMedia 以精確捕捉錯誤名稱與訊息
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-            .then(stream => {
-                lastGetUserMediaStatus = "成功";
-                lastGetUserMediaErrorName = "";
-                lastGetUserMediaErrorMessage = "";
-                // 測試完後釋放串流，交給 MindAR 重新接管
-                stream.getTracks().forEach(track => track.stop());
-                updateWebARDebugPanel();
-            })
-            .catch(err => {
-                lastGetUserMediaStatus = "失敗";
-                lastGetUserMediaErrorName = err.name || "UnknownError";
-                lastGetUserMediaErrorMessage = err.message || String(err);
-                webARCurrentState = "AR_ERROR";
-                if (statusEl) {
-                    statusEl.innerHTML = `❌ getUserMedia 失敗<br>錯誤類型：${lastGetUserMediaErrorName}<br>錯誤訊息：${lastGetUserMediaErrorMessage}`;
-                }
-                if (triggerBox) triggerBox.style.display = 'block';
-                updateWebARDebugPanel();
-                return;
-            });
-    } else {
-        lastGetUserMediaStatus = "不支援";
-        lastGetUserMediaErrorName = "NotSupported";
-        lastGetUserMediaErrorMessage = "navigator.mediaDevices 不存在";
-        updateWebARDebugPanel();
+    if (!sceneEl) {
+        ensureMobileARScene();
+        return;
     }
 
-    // 檢查 targets.mind 檔案是否能正常載入
-    targetsMindStatus = "檢查中...";
-    updateWebARDebugPanel();
+    if (statusEl) statusEl.innerHTML = `🔄 正在重新啟動相機，請稍候...`;
+    if (triggerBox) triggerBox.style.display = 'none';
 
-    fetch('./targets.mind', { method: 'GET', cache: 'no-store' })
-        .then(res => {
-            if (!res.ok) {
-                targetsMindStatus = `失敗 (HTTP ${res.status})`;
-                webARCurrentState = "AR_ERROR";
-                if (statusEl) statusEl.innerHTML = `❌ targets.mind 檔案載入失敗（HTTP ${res.status}）。請確認檔案有上傳到根目錄。`;
+    function tryStart() {
+        try {
+            if (!sceneEl.systems || !sceneEl.systems["mindar-image-system"]) {
+                if (statusEl) statusEl.innerHTML = `⚠️ 相機系統尚未準備完成，請稍等一下再點一次按鈕`;
                 if (triggerBox) triggerBox.style.display = 'block';
-                updateWebARDebugPanel();
                 return;
             }
-            targetsMindStatus = "成功載入";
-            updateWebARDebugPanel();
 
-            // 啟動 MindAR 系統
-            const sceneEl = document.getElementById('ar-scene-mobile');
-            if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-                webARCurrentState = "MINDAR_STARTING";
-                if (statusEl) statusEl.innerHTML = `🔄 MindAR 正在啟動相機...`;
-                updateWebARDebugPanel();
+            try { sceneEl.systems["mindar-image-system"].stop(); } catch (e) {}
+            sceneEl.systems["mindar-image-system"].start();
 
-                try {
-                    const startResult = sceneEl.systems["mindar-image-system"].start();
-                    if (startResult && typeof startResult.catch === 'function') {
-                        startResult.catch(err => {
-                            webARCurrentState = "AR_ERROR";
-                            const msg = (err && err.message) ? err.message : String(err);
-                            if (statusEl) statusEl.innerHTML = `❌ MindAR 啟動失敗：${msg}`;
-                            if (triggerBox) triggerBox.style.display = 'block';
-                            updateWebARDebugPanel();
-                        });
-                    }
-                } catch (e) {
-                    webARCurrentState = "AR_ERROR";
-                    const msg = (e && e.message) ? e.message : String(e);
-                    if (statusEl) statusEl.innerHTML = `❌ MindAR 啟動例外：${msg}`;
+            mobileARReadyFired = false;
+            clearTimeout(mobileARStartTimeoutId);
+            mobileARStartTimeoutId = setTimeout(() => {
+                if (!mobileARReadyFired) {
+                    if (statusEl) statusEl.innerHTML = `⚠️ 相機仍未啟動成功。請確認瀏覽器相機權限已允許，或改用 Chrome 瀏覽器再試一次。`;
                     if (triggerBox) triggerBox.style.display = 'block';
-                    updateWebARDebugPanel();
                 }
-            } else {
-                webARCurrentState = "AR_ERROR";
-                if (statusEl) statusEl.innerHTML = `❌ A-Frame 或 MindAR 系統尚未準備就緒`;
-                if (triggerBox) triggerBox.style.display = 'block';
-                updateWebARDebugPanel();
-            }
-        })
-        .catch(err => {
-            targetsMindStatus = `網路錯誤 (${err.message})`;
-            webARCurrentState = "AR_ERROR";
-            if (statusEl) statusEl.innerHTML = `❌ 無法讀取 targets.mind：${err.message}`;
+            }, 8000);
+        } catch (e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗：${msg}`;
             if (triggerBox) triggerBox.style.display = 'block';
-            updateWebARDebugPanel();
-        });
+        }
+    }
+
+    if (sceneEl.hasLoaded) {
+        tryStart();
+    } else {
+        sceneEl.addEventListener('loaded', tryStart, { once: true });
+    }
 }
 
 window.switchMobileTask = function(taskNum) {
@@ -526,9 +408,9 @@ const tutorialPages = [
         title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？",
         content: `
             <p><strong>資料導向決策（Data-Driven Decision Making）</strong>是指企業在面臨各項商業抉擇與營運調整時，徹底拋棄過去純粹依賴個人直覺、經驗猜測或主觀偏好的做法，改以<strong>客觀的量化數據、統計指標與趨勢預測</strong>作為決策的核心依據。</p>
-            <p><strong>舉個生活中的對比情境：</strong><br>當便利商店主管要決定 "本週到底該增加哪種商品的庫存？" 時：</p>
-            <p>• <strong>主管憑直覺：</strong><em>"我覺得最近天氣變涼了，大家應該會想買 A 商品，多進一點貨準沒錯！"</em> ➔ 這種做法屬於主觀猜測，存在高度庫存積壓風險。</p>
-            <p>• <strong>主管看數據：</strong><em>"透過後台數據發現 A 商品最近三週銷售量持續成長 30%，且當前庫存僅剩 2 天安全存量，因此系統自動建議優先補貨。"</em> ➔ 這就是標準的客觀決策。</p>
+            <p><strong>舉個生活中的對比情境：</strong><br>當便利商店主管要決定「本週到底該增加哪種商品的庫存？」時：</p>
+            <p>• <strong>主管憑直覺：</strong><em>「我覺得最近天氣變涼了，大家應該會想買 A 商品，多進一點貨準沒錯！」</em> ➔ 這種做法屬於主觀猜測，存在高度庫存積壓風險。</p>
+            <p>• <strong>主管看數據：</strong><em>「透過後台數據發現 A 商品最近三週銷售量持續成長 30%，且當前庫存僅剩 2 天安全存量，因此系統自動建議優先補貨。」</em> ➔ 這就是標準的客觀決策。</p>
             <p style="margin-top: 6px;">透過數據引導，能夠大幅降低因錯誤判斷而導致的資金卡住與營運虧損。</p>
         `
     },
