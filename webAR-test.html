@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>WebAR 診斷測試頁</title>
+  
+  <!-- 載入 A-Frame -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <!-- 載入 MindAR for A-Frame -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: monospace;
+    }
+    /* 診斷資訊面板 */
+    #diagnostic-panel {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      width: calc(100% - 20px);
+      max-height: 90vh;
+      background: rgba(0, 0, 0, 0.85);
+      color: #00ff00;
+      padding: 12px;
+      box-sizing: border-box;
+      z-index: 99999;
+      font-size: 12px;
+      border-radius: 8px;
+      overflow-y: auto;
+      pointer-events: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    #diagnostic-panel h2 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #ffff00;
+      border-bottom: 1px solid #444;
+      padding-bottom: 4px;
+    }
+    .log-row {
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .label {
+      color: #00ffff;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background: #333;
+      color: #fff;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 手機畫面診斷資訊面板 -->
+  <div id="diagnostic-panel">
+    <h2>🔧 WebAR 診斷資訊</h2>
+    <div class="log-row"><span class="label">Camera API:</span> <span id="val-api">檢查中...</span></div>
+    <div class="log-row"><span class="label">Camera permission:</span> <span id="val-perm">unknown</span></div>
+    <div class="log-row"><span class="label">getUserMedia:</span> <span id="val-guf">尚未測試</span></div>
+    <div class="log-row"><span class="label">error.name:</span> <span id="val-err-name">無</span></div>
+    <div class="log-row"><span class="label">error.message:</span> <span id="val-err-msg">無</span></div>
+    <div class="log-row"><span class="label">video element:</span> <span id="val-vid-exist">不存在</span></div>
+    <div class="log-row"><span class="label">video.readyState:</span> <span id="val-vid-ready">0</span></div>
+    <div class="log-row"><span class="label">video.videoWidth:</span> <span id="val-vid-w">0</span></div>
+    <div class="log-row"><span class="label">video.videoHeight:</span> <span id="val-vid-h">0</span></div>
+    <div class="log-row"><span class="label">video.paused:</span> <span id="val-vid-paused">true</span></div>
+    <div class="log-row"><span class="label">video.srcObject:</span> <span id="val-vid-src">無</span></div>
+    <div class="log-row"><span class="label">video.play:</span> <span id="val-vid-play">尚未測試</span></div>
+    <div class="log-row"><span class="label">A-Frame:</span> <span id="val-aframe">載入中</span></div>
+    <div class="log-row"><span class="label">MindAR:</span> <span id="val-mindar">尚未啟動</span></div>
+    <div class="log-row"><span class="label">targets.mind:</span> <span id="val-target-file">載入中...</span></div>
+    <div class="log-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 4px;">
+      <span class="label">Current status:</span> <br>
+      <span id="val-status" class="status-badge">INIT</span>
+    </div>
+    <div class="log-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 4px;">
+      <span class="label">Event Log:</span><br>
+      <div id="val-events" style="color: #ff9900; max-height: 80px; overflow-y: auto;">尚無事件</div>
+    </div>
+  </div>
+
+  <!-- A-Frame AR 場景設定 -->
+  <a-scene 
+    id="ar-scene"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: yes; uiError: yes; uiScanning: yes;" 
+    color-space="sRGB" 
+    embedded 
+    renderer="colorManagement: true, physicallyCorrectLights" 
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false">
+    
+    <a-assets>
+      <img id="card" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png" />
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity mindar-image-target="targetIndex: 0">
+      <a-plane src="#card" position="0 0 0" height="0.552" width="1" rotation="0 0 0"></a-plane>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    function updateStatus(statusText) {
+      document.getElementById('val-status').innerText = statusText;
+    }
+
+    function addEventLog(msg) {
+      const el = document.getElementById('val-events');
+      el.innerHTML += '<br>[' + new Date().toLocaleTimeString() + '] ' + msg;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // 1. 檢查基本 API 與 A-Frame 狀態
+    window.addEventListener('DOMContentLoaded', () => {
+      updateStatus('CAMERA_STARTING');
+      
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        document.getElementById('val-api').innerText = '正常 (支援)';
+      } else {
+        document.getElementById('val-api').innerText = '不存在 (不支援)';
+        document.getElementById('val-guf').innerText = '失敗';
+        updateStatus('AR_ERROR');
+        addEventLog('❌ 瀏覽器不支援 getUserMedia API');
+      }
+
+      if (typeof AFRAME !== 'undefined') {
+        document.getElementById('val-aframe').innerText = 'loaded';
+      } else {
+        document.getElementById('val-aframe').innerText = '載入失敗';
+      }
+
+      // 檢查 targets.mind 是否能下載
+      fetch('./targets.mind')
+        .then(res => {
+          if (res.ok) {
+            document.getElementById('val-target-file').innerText = '成功 (HTTP 200)';
+          } else {
+            document.getElementById('val-target-file').innerText = '失敗 (HTTP ' + res.status + ')';
+          }
+        })
+        .catch(err => {
+          document.getElementById('val-target-file').innerText = '失敗 (' + err.message + ')';
+        });
+
+      // 測試原生 getUserMedia 以排查權限與相機錯誤
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          document.getElementById('val-guf').innerText = '成功';
+          document.getElementById('val-perm').innerText = 'granted';
+          addEventLog('✅ 原生 getUserMedia 取得相機成功');
+          
+          // 釋放測試串流，交給 MindAR 處理
+          stream.getTracks().forEach(track => track.stop());
+        })
+        .catch(err => {
+          document.getElementById('val-guf').innerText = '失敗';
+          document.getElementById('val-perm').innerText = 'denied / error';
+          document.getElementById('val-err-name').innerText = err.name || 'Unknown';
+          document.getElementById('val-err-msg').innerText = err.message || 'Unknown';
+          addEventLog('❌ getUserMedia 失敗: ' + err.name + ' - ' + err.message);
+          updateStatus('AR_ERROR');
+        });
+    });
+
+    // 2. 監控 A-Frame / MindAR 事件與 Video 狀態
+    const sceneEl = document.getElementById('ar-scene');
+
+    sceneEl.addEventListener('arReady', () => {
+      updateStatus('AR_READY');
+      document.getElementById('val-mindar').innerText = 'ready';
+      addEventLog('✅ MindAR AR Ready');
+    });
+
+    sceneEl.addEventListener('arError', (event) => {
+      updateStatus('AR_ERROR');
+      document.getElementById('val-mindar').innerText = 'error';
+      addEventLog('❌ MindAR 啟動失敗 (arError)');
+    });
+
+    sceneEl.addEventListener('targetFound', () => {
+      addEventLog('🎯 成功辨識 target 0');
+    });
+
+    sceneEl.addEventListener('targetLost', () => {
+      addEventLog('⚠️ 卡片離開畫面');
+    });
+
+    // 定時監控背景產生的 <video> 元素屬性變化
+    setInterval(() => {
+      const videoEl = document.querySelector('video');
+      if (videoEl) {
+        document.getElementById('val-vid-exist').innerText = '存在';
+        document.getElementById('val-vid-ready').innerText = videoEl.readyState;
+        document.getElementById('val-vid-w').innerText = videoEl.videoWidth;
+        document.getElementById('val-vid-h').innerText = videoEl.videoHeight;
+        document.getElementById('val-vid-paused').innerText = videoEl.paused ? 'true' : 'false';
+        document.getElementById('val-vid-src').innerText = videoEl.srcObject ? '有' : '無';
+        
+        if (videoEl.srcObject && videoEl.paused) {
+          videoEl.play().then(() => {
+            document.getElementById('val-vid-play').innerText = '成功觸發 play()';
+          }).catch(e => {
+            document.getElementById('val-vid-play').innerText = '失敗: ' + e.message;
+          });
+        } else if (videoEl.srcObject && !videoEl.paused) {
+          document.getElementById('val-vid-play').innerText = '播放中';
+        }
+      } else {
+        document.getElementById('val-vid-exist').innerText = '不存在';
+      }
+    }, 1000);
+  </script>
+
+</body>
+</html>
