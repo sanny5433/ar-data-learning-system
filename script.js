@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDEkhWQ7d20DdBxH2FVcCZFfivFPTbKqH8",
@@ -17,7 +17,6 @@ function goToScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => screen.classList.remove('active'));
     
-    // 如果離開手機 AR 畫面，安全停止 MindAR 鏡頭
     if (screenId !== 'screen-mobile-ar') {
         const sceneEl = document.getElementById('ar-scene-mobile');
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
@@ -47,6 +46,7 @@ let scannedCardsByTask = {
 
 let cardScanDetails = {}; 
 let recordSaveCounts = { task1: 0, task2: 0, task3: 0 };
+let activeScanUnsubscribe = null;
 
 const requiredCards = {
     task1: ['T1-Card01', 'T1-Card02', 'T1-Card03', 'T1-Card04', 'T1-Card05'],
@@ -87,7 +87,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 初始化手機 AR 實體卡片目標監聽器
     initMobileTargetListeners();
 });
 
@@ -189,7 +188,6 @@ window.startMobileAR = function(taskNum) {
     if (statusEl) statusEl.innerHTML = `🔄 正在初始化相機，請允許相機權限...`;
     if (triggerBox) triggerBox.style.display = 'none';
 
-    // 確保 DOM 畫面完全切換並完成 Layout Reflow 後，才啟動 MindAR
     setTimeout(() => {
         const sceneEl = document.getElementById('ar-scene-mobile');
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
@@ -238,191 +236,6 @@ window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-// 【教科書級別完整 10 頁詳細基礎教學】
-const tutorialPages = [
-    {
-        title: "1. 什麼是關聯規則（Association Rules）？",
-        content: `
-            <p>關聯規則（Association Rules）是商用大數據分析、資料探勘（Data Mining）與商業智慧中極為核心且強大的分析方法，主要用來發掘不同商品、事件或消費者行為之間隱含的關聯性與規律。</p>
-            <p>簡單來說，它就像是一位經驗豐富的超級店長，能夠自動從成千上萬筆雜亂無章的結帳明細中去抽絲剝繭，找出：<strong><span>「哪些商品或行為經常在同一個情境下頻繁一起出現？」</span></strong></p>
-            <p>例如：當顧客在結帳時購買了吐司與麵包，是否也經常順便購買鮮奶？這種「同現關係」正是關聯分析最想幫企業找出的黃金規律。</p>
-            <hr style="margin: 10px 0; border: none; border-top: 1px solid #e9ecef;">
-            <p><strong>生活中的經典情境舉例：</strong><br>假設一家社區便利商店在一天之內產生了以下幾筆基礎交易紀錄：</p>
-            <ul style="text-align: left; display: inline-block; margin: 3px 0 6px 15px; line-height: 1.5;">
-                <li><strong>交易 1：</strong> 麵包、牛奶</li>
-                <li><strong>交易 2：</strong> 麵包、牛奶、香醇咖啡</li>
-                <li><strong>交易 3：</strong> 麵包、香醇咖啡</li>
-                <li><strong>交易 4：</strong> 牛奶、香醇咖啡</li>
-                <li><strong>交易 5：</strong> 麵包、牛奶</li>
-            </ul>
-            <p>透過系統化的統計與觀察，我們很容易就能發現「麵包」與「牛奶」經常手牽手出現在同一筆交易單中。這種類型的規律，就是關聯規則最基礎也最重要的雛形。</p>
-        `
-    },
-    {
-        title: "2. 為什麼現代企業需要尋找「商品關聯」？",
-        content: `
-            <p>在當今競爭激烈的零售與電子商務環境中，每天產生的交易資料極為龐大且複雜，光靠傳統的人工肉眼或個人直覺，根本無法逐筆檢視並看出其中的潛在脈絡。</p>
-            <p>如果一間連鎖超商一天有高達 <strong>10,000 筆交易</strong>，隱藏在背後的顧客消費習慣如果沒有透過數據工具挖掘，就會被白白浪費。透過科學化的關聯分析，企業能夠達成以下關鍵目標：</p>
-            <ul style="text-align: left; display: inline-block; margin: 6px 0; line-height: 1.6;">
-                <li><strong>精準掌握隱性需求</strong>：發現顧客自己可能都沒意識到的共同購買習慣。</li>
-                <li><strong>優化賣場商品陳列</strong>：將高關聯的商品擺放在相近的貨架區域（如洋芋片旁擺啤酒），增加順手購買率。</li>
-                <li><strong>規劃高效組合促銷</strong>：設計「超值特餐」或「買 A 送 B 優惠包」，有效帶動滯銷品的銷量。</li>
-                <li><strong>提升整體營運效益</strong>：拉高效能客單價，替企業創造更高的商業價值。</li>
-            </ul>
-            <p><strong>因此請記住：</strong>關聯規則絕對不是單純去找出「誰賣得最好（熱門商品）」而已，而是要深入挖掘<strong><span>「商品與商品之間的深層動態關係」</span></strong>。</p>
-        `
-    },
-    {
-        title: "3. 核心指標一：支援度（Support）",
-        content: `
-            <p>在關聯規則分析中，第一個不可或缺的量化指標就是<strong>支援度（Support）</strong>。</p>
-            <p>支援度是用來客觀衡量：<strong><span>某個特定的商品組合在全體交易資料中出現的頻率究竟有多高？</span></strong>它代表的是一種「宏觀的普及率」。</p>
-            <p><strong>計算公式：</strong></p>
-            <p style="background: #f8f9fa; padding: 8px; border-radius: 6px; font-family: monospace; text-align: center; font-weight: bold; color: #2c3e50;">支援度 ＝ 包含該商品組合的交易筆數 ÷ 總交易筆數</p>
-            <p><strong>具體算術範例：</strong><br>假設全賣場總共有 <strong>100 筆交易</strong>，其中剛好有 <strong>20 筆交易</strong>同時購買了<strong><span>「麵包＋牛奶」</span></strong>，那麼這組商品的支援度計算方式為：<br><code>20 ÷ 100 ＝ 20%</code></p>
-            <p>這代表在所有消費者的購物籃中，有 20% 的比例會同時裝著麵包和牛奶。</p>
-            <p><strong>簡單理解心法：</strong>支援度數值越高 ➔ 代表這個商品組合在整個市場或賣場中越常集體出現，具備極高的普及與代表性。</p>
-        `
-    },
-    {
-        title: "4. 核心指標二：信心度（Confidence）",
-        content: `
-            <p>除了支援度之外，第二個關鍵指標就是<strong>信心度（Confidence）</strong>，它著重於「條件因果」的推論。</p>
-            <p>信心度是用來衡量：<strong><span>當顧客已經購買了商品 A 的前提下，同時也購買商品 B 的「條件機率」有多高？</span></strong>它代表的是一種指向性的強弱。</p>
-            <p><strong>計算公式：</strong></p>
-            <p style="background: #f8f9fa; padding: 8px; border-radius: 6px; font-family: monospace; text-align: center; font-weight: bold; color: #2c3e50;">信心度 ＝ 同時包含 A 與 B 的交易筆數 ÷ 包含 A 的交易筆數</p>
-            <p><strong>具體算術範例：</strong><br>假設在全部交易中，總共有 <strong>100 位顧客買了「麵包」</strong>，而在這 100 人之中，有 <strong>60 人同時也買了「牛奶」</strong>，那麼由麵包推導至牛奶的信心度計算方式為：<br><code>60 ÷ 100 ＝ 60%</code></p>
-            <p>這代表購買麵包的客群中，有高達 60% 的人會順便把牛奶帶回家。</p>
-            <p><strong>簡單理解心法：</strong>信心度數值越高 ➔ 代表商品 A 對商品 B 具有非常強大的連動帶動效果。</p>
-        `
-    },
-    {
-        title: "5. 深入解析：支援度與信心度的區別",
-        content: `
-            <p>許多初學者在剛接觸數據分析時，很容易將這兩個指標搞混。我們可以用簡單的表格與視角來幫大家釐清：</p>
-            <table style="width:100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; text-align: left;">
-                <tr style="background: #f1f2f6;"><th style="padding: 7px; border: 1px solid #dcdde1;">比較項目</th><th style="padding: 7px; border: 1px solid #dcdde1;">支援度 (Support)</th><th style="padding: 7px; border: 1px solid #dcdde1;">信心度 (Confidence)</th></tr>
-                <tr><td style="padding: 7px; border: 1px solid #dcdde1;"><strong>核心思考視角</strong></td><td style="padding: 7px; border: 1px solid #dcdde1;">全體宏觀視角（全市場）</td><td style="padding: 7px; border: 1px solid #dcdde1;">條件因果視角（子集合）</td></tr>
-                <tr><td style="padding: 7px; border: 1px solid #dcdde1;"><strong>想知道的問題</strong></td><td style="padding: 7px; border: 1px solid #dcdde1;">這個商品組合在全體有多常出現？</td><td style="padding: 7px; border: 1px solid #dcdde1;">買了 A 的人，有多少比例也買了 B？</td></tr>
-            </table>
-            <p style="margin-top: 8px;"><strong>可以這樣輕鬆記：</strong><br>• 支援度 ➔ 看的是<strong>「常見度與能見度」</strong>（全體有多大眾）。<br>• 信心度 ➔ 看的是<strong>「跟著買的強烈可能與因果」</strong>（A 發生時 B 發生的機率）。<br><br>在後續的實驗任務中，這兩個指標的計算與判斷將會是答題的核心關鍵！</p>
-        `
-    },
-    {
-        title: "6. 如何從原始資料中逐步找出關聯？",
-        content: `
-            <p>要從一堆零散的交易數據中萃取出有價值的商業關聯規則，通常需要依循一套標準的分析步驟：</p>
-            <p><strong>第一步：匯集與整理交易資料</strong><br>將各個通路、不同時段的 POS 系統結帳明細、發票資料或會員消費日誌進行統整，確保每一筆交易包含哪些商品項目清清楚楚。</p>
-            <p><strong>第二步：交叉比對與組合計算</strong><br>逐一統計各種商品組合（如「麵包＋牛奶」、「麵包＋咖啡」、「牛奶＋咖啡」）各自在所有交易中出現的次數與頻率。</p>
-            <p><strong>第三步：計算指標並篩選規則</strong><br>運用前面學到的支援度與信心度公式進行量化計算，剔除隨機的雜訊，挑選出數值最高、最具商業參考價值的關聯規則作為後續行銷佈局的依據。</p>
-        `
-    },
-    {
-        title: "7. 數據不只是冷冰冰的數字：如何解讀？",
-        content: `
-            <p>在進行商業數據分析時，最忌諱的就是「只看到表面數字就直接下粗糙的結論」。舉個簡單的銷售排行榜為例：</p>
-            <table style="width:100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; text-align: center;">
-                <tr style="background: #f1f2f6;"><th style="padding: 5px; border: 1px solid #dcdde1;">商品代號</th><th style="padding: 5px; border: 1px solid #dcdde1;">當月總銷售量</th></tr>
-                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">商品 A</td><td style="padding: 5px; border: 1px solid #dcdde1;">100 件</td></tr>
-                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">商品 B</td><td style="padding: 5px; border: 1px solid #dcdde1;">80 件</td></tr>
-                <tr><td style="padding: 5px; border: 1px solid #dcdde1;">商品 C</td><td style="padding: 5px; border: 1px solid #dcdde1;">150 件</td></tr>
-            </table>
-            <p>單從上表我們很容易看出「商品 C」的銷量最高。但如果我們身為管理者要做進一步的營運決策，光知道銷量還不夠，我們還必須深入探討以下問題：</p>
-            <ul style="text-align: left; display: inline-block; margin: 4px 0 0 15px; line-height: 1.5;">
-                <li>商品 C 是不是只有在特定促銷日才賣得好？平日表現如何？</li>
-                <li>商品 C 是否經常與其他周邊商品一起被購買？</li>
-                <li>目前的庫存水位是否足以應付即將到來的週末人潮？</li>
-                <li>商品 C 近期的銷售趨勢是持續成長還是正在下滑？</li>
-            </ul>
-            <p style="margin-top: 8px;"><strong>核心觀念：</strong>真正的資料分析絕不只是「看數字的大小」，而是要從多維度的數據中抽絲剝繭，找出能真正輔助決策的實質洞察。</p>
-        `
-    },
-    {
-        title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？",
-        content: `
-            <p><strong>資料導向決策（Data-Driven Decision Making）</strong>是指企業在面臨各項商業抉擇與營運調整時，徹底拋棄過去純粹依賴個人直覺、經驗猜測或主觀偏好的做法，改以<strong>客觀的量化數據、統計指標與趨勢預測</strong>作為決策的核心依據。</p>
-            <p><strong>舉個生活中的對比情境：</strong><br>當便利商店主管要決定「本週到底該增加哪種商品的庫存？」時：</p>
-            <p>• <strong>主管憑直覺：</strong><em>「我覺得最近天氣變涼了，大家應該會想買 A 商品，多進一點貨準沒錯！」</em> ➔ 這種做法屬於主觀猜測，存在高度庫存積壓風險。</p>
-            <p>• <strong>主管看數據：</strong><em>「透過後台數據發現 A 商品最近三週銷售量持續成長 30%，且當前庫存僅剩 2 天安全存量，因此系統自動建議優先補貨。」</em> ➔ 這就是標準的客觀決策。</p>
-            <p style="margin-top: 6px;">透過數據引導，能夠大幅降低因錯誤判斷而導致的資金卡住與營運虧損。</p>
-        `
-    },
-    {
-        title: "9. 資料導向決策的標準商業閉環流程",
-        content: `
-            <p>為了讓決策不再出錯，企業通常會建立一套標準的資料決策閉環流程：</p>
-            <p style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-weight: bold; text-align: center; color: #2980b9; font-size: 14px;">
-                資料蒐集 ➔ 數據分析 ➔ 發現規律 ➔ 商業判斷 ➔ 實際決策
-            </p>
-            <p><strong>我們用一個實務例子來對應：</strong><br>1. <strong>資料蒐集</strong>：匯集每日銷售與發票明細。<br>2. <strong>數據分析</strong>：計算各商品組合的支援度與銷售增長率。<br>3. <strong>發現規律</strong>：發現特定商品組合具有高達 80% 的強烈關聯。<br>4. <strong>商業判斷</strong>：判斷將兩者擺在相鄰貨架能有效提升客單價。<br>5. <strong>實際決策</strong>：調整實體陳列與備貨量。</p>
-            <p style="margin-top: 8px; color: #e67e22; font-weight: bold;">這套思考邏輯會完美串聯你接下來在系統中所要執行的各項 AR 探索與實驗任務！</p>
-        `
-    },
-    {
-        title: "10. 學習總結：資料分析的終極心法",
-        content: `
-            <p>學習商用數據分析與 AR 互動系統，不一定要一開始就去學深奧難懂的高階程式碼或複雜數學模型。</p>
-            <p>在日常的商業與職場環境中，最重要的是培養以下四個基本能力：</p>
-            <ul style="text-align: left; display: inline-block; margin: 8px 0; line-height: 1.6;">
-                <li><strong>看懂資料</strong>：能夠正確解讀報表與指標意義。</li>
-                <li><strong>比較資料</strong>：懂得透過橫向與縱向對比看出差異。</li>
-                <li><strong>找出規律</strong>：利用支援度與信心度找出隱藏的關聯。</li>
-                <li><strong>做出決策</strong>：依據客觀證據提出合理的商業判斷。</li>
-            </ul>
-            <p style="margin-top: 12px; font-size: 16px; color: #2c3e50; text-align: center; font-weight: bold; background: #e8f8f0; padding: 10px; border-radius: 6px;">
-                核心心法總結：資料 ➔ 比較 ➔ 找規律 ➔ 做決策
-            </p>
-            <p style="text-align: center; margin-top: 8px; color: #7f8c8d; font-size: 13px;">恭喜您完成所有詳細基礎教學！請點擊下方按鈕，準備進入手機 AR 實體卡片探索！</p>
-        `
-    }
-];
-
-let currentTutorialIndex = 0;
-window.goToTutorial = function() {
-    goToScreen('screen-tutorial');
-    currentTutorialIndex = 0;
-    renderTutorialPage();
-    setDoc(getParticipantDocRef(), { currentStage: "tutorial" }, { merge: true }).catch(err => err);
-}
-
-function renderTutorialPage() {
-    const page = tutorialPages[currentTutorialIndex];
-    document.getElementById('tutorial-progress').innerText = `教學單元 ${currentTutorialIndex + 1} / ${tutorialPages.length}`;
-    document.getElementById('tutorial-title').innerText = page.title;
-    document.getElementById('tutorial-content').innerHTML = page.content;
-    document.getElementById('tutorial-prev-btn').style.display = currentTutorialIndex === 0 ? "none" : "inline-block";
-    document.getElementById('tutorial-next-btn').innerText = currentTutorialIndex === tutorialPages.length - 1 ? "完成教學：產生手機 AR 配對 QR Code" : "下一頁";
-}
-
-window.prevTutorialPage = function() { if (currentTutorialIndex > 0) { currentTutorialIndex--; renderTutorialPage(); } }
-
-window.nextTutorialPage = function() {
-    if (currentTutorialIndex < tutorialPages.length - 1) {
-        currentTutorialIndex++;
-        renderTutorialPage();
-    } else {
-        showARPairingScreen();
-    }
-}
-
-function showARPairingScreen() {
-    goToScreen('screen-ar-pairing');
-    
-    const baseUrl = window.location.origin + window.location.pathname;
-    const pairingUrl = `${baseUrl}?session=${encodeURIComponent(sessionPrefix)}&participant=${encodeURIComponent(currentParticipantId)}&sessionId=${currentSessionId}&mode=ar`;
-
-    const qrContainer = document.getElementById('qrcode-container');
-    qrContainer.innerHTML = "";
-    new QRCode(qrContainer, {
-        text: pairingUrl,
-        width: 160,
-        height: 160,
-        colorDark: "#2c3e50",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-    });
-}
-
 window.scanARCard = function(taskId, cardId, cardDescription) {
     if (!scannedCardsByTask[taskId].has(cardId)) {
         scannedCardsByTask[taskId].add(cardId);
@@ -433,18 +246,6 @@ window.scanARCard = function(taskId, cardId, cardDescription) {
     }
     cardScanDetails[cardId].scanCount++;
     cardScanDetails[cardId].lastScanTime = new Date().toISOString();
-
-    const scannedCount = scannedCardsByTask[taskId].size;
-    const totalCount = requiredCards[taskId].length;
-
-    const statusMsg = `📱 手機 AR 掃描狀態：${cardDescription} (已探索 ${scannedCount}/${totalCount} 張卡片)`;
-    if (taskId === 'task1') document.getElementById('ar-scan-result-1').innerHTML = statusMsg;
-    else if (taskId === 'task2') document.getElementById('ar-scan-result-2').innerHTML = statusMsg;
-    else if (taskId === 'task3') document.getElementById('ar-scan-result-3').innerHTML = statusMsg;
-
-    if (scannedCount === totalCount) {
-        unlockTaskQuestions(taskId);
-    }
 
     const basePath = getParticipantDocRef();
     const taskScanRef = doc(basePath, "arScans", taskId);
@@ -457,6 +258,41 @@ window.scanARCard = function(taskId, cardId, cardDescription) {
             updatedAt: new Date().toISOString()
         }
     }, { merge: true }).catch(err => console.error(err));
+}
+
+// 電腦端即時監聽 Firestore 的 arScans 狀態，讓電腦端完美跟隨手機掃描進度！
+function listenToTaskScans(taskId) {
+    if (activeScanUnsubscribe) {
+        activeScanUnsubscribe();
+        activeScanUnsubscribe = null;
+    }
+    const scanRef = doc(db, "participants", getParticipantDocId(), "arScans", taskId);
+    activeScanUnsubscribe = onSnapshot(scanRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const cardKeys = Object.keys(data).filter(k => k.startsWith(taskId.toUpperCase()));
+            scannedCardsByTask[taskId] = new Set(cardKeys);
+            
+            const scannedCount = scannedCardsByTask[taskId].size;
+            const totalCount = requiredCards[taskId].length;
+            const statusMsg = `📱 手機 AR 掃描狀態：已同步 (已探索 ${scannedCount}/${totalCount} 張卡片)`;
+            
+            if (taskId === 'task1') {
+                const el = document.getElementById('ar-scan-result-1');
+                if (el) el.innerHTML = statusMsg;
+            } else if (taskId === 'task2') {
+                const el = document.getElementById('ar-scan-result-2');
+                if (el) el.innerHTML = statusMsg;
+            } else if (taskId === 'task3') {
+                const el = document.getElementById('ar-scan-result-3');
+                if (el) el.innerHTML = statusMsg;
+            }
+
+            if (scannedCount >= totalCount) {
+                unlockTaskQuestions(taskId);
+            }
+        }
+    });
 }
 
 function unlockTaskQuestions(taskId) {
@@ -512,6 +348,7 @@ window.startTask1 = function() {
     goToScreen('screen-task1');
     taskStartTime = Date.now();
     renderTaskQuestions('task1', task1Questions);
+    listenToTaskScans('task1');
     setDoc(getParticipantDocRef(), { currentStage: "task1" }, { merge: true }).catch(err => err);
 }
 
@@ -527,6 +364,7 @@ window.startTask2 = function() {
     goToScreen('screen-task2');
     taskStartTime = Date.now();
     renderTaskQuestions('task2', task2Questions);
+    listenToTaskScans('task2');
     setDoc(getParticipantDocRef(), { currentStage: "task2" }, { merge: true }).catch(err => err);
 }
 
@@ -542,6 +380,7 @@ window.startTask3 = function() {
     goToScreen('screen-task3');
     taskStartTime = Date.now();
     renderTaskQuestions('task3', task3Questions);
+    listenToTaskScans('task3');
     setDoc(getParticipantDocRef(), { currentStage: "task3" }, { merge: true }).catch(err => err);
 }
 
@@ -603,6 +442,94 @@ window.submitTaskQuestions = function(taskId) {
     if (taskId === 'task1') startTask2();
     else if (taskId === 'task2') startTask3();
     else startPostTest();
+}
+
+const tutorialPages = [
+    {
+        title: "1. 什麼是關聯規則（Association Rules）？",
+        content: `<p>關聯規則是商用大數據分析的核心方法，用來發掘商品之間隱含的關聯性與規律。</p>`
+    },
+    {
+        title: "2. 為什麼現代企業需要尋找「商品關聯」？",
+        content: `<p>透過關聯分析，企業能掌握隱性需求、優化賣場陳列並規劃促銷。</p>`
+    },
+    {
+        title: "3. 核心指標一：支援度（Support）",
+        content: `<p>支援度是用來衡量某個特定商品組合在全體交易中出現的頻率。</p>`
+    },
+    {
+        title: "4. 核心指標二：信心度（Confidence）",
+        content: `<p>信心度是當顧客買了 A 的情況下，同時買 B 的條件機率。</p>`
+    },
+    {
+        title: "5. 深入解析：支援度與信心度的區別",
+        content: `<p>支援度看全體普及率，信心度看條件因果強度。</p>`
+    },
+    {
+        title: "6. 如何從原始資料中逐步找出關聯？",
+        content: `<p>透過匯集交易資料、交叉比對與計算指標來篩選規則。</p>`
+    },
+    {
+        title: "7. 數據不只是冷冰冰的數字：如何解讀？",
+        content: `<p>不只看銷量大小，更要深入分析趨勢與庫存關聯。</p>`
+    },
+    {
+        title: "8. 什麼是資料導向決策（Data-Driven Decision Making）？",
+        content: `<p>以客觀量化數據與趨勢預測取代個人直覺。</p>`
+    },
+    {
+        title: "9. 資料導向決策的標準商業閉環流程",
+        content: `<p>資料蒐集 ➔ 數據分析 ➔ 發現規律 ➔ 商業判斷 ➔ 實際決策。</p>`
+    },
+    {
+        title: "10. 學習總結：資料分析的終極心法",
+        content: `<p>核心心法：資料 ➔ 比較 ➔ 找規律 ➔ 做決策。</p>`
+    }
+];
+
+let currentTutorialIndex = 0;
+window.goToTutorial = function() {
+    goToScreen('screen-tutorial');
+    currentTutorialIndex = 0;
+    renderTutorialPage();
+    setDoc(getParticipantDocRef(), { currentStage: "tutorial" }, { merge: true }).catch(err => err);
+}
+
+function renderTutorialPage() {
+    const page = tutorialPages[currentTutorialIndex];
+    document.getElementById('tutorial-progress').innerText = `教學單元 ${currentTutorialIndex + 1} / ${tutorialPages.length}`;
+    document.getElementById('tutorial-title').innerText = page.title;
+    document.getElementById('tutorial-content').innerHTML = page.content;
+    document.getElementById('tutorial-prev-btn').style.display = currentTutorialIndex === 0 ? "none" : "inline-block";
+    document.getElementById('tutorial-next-btn').innerText = currentTutorialIndex === tutorialPages.length - 1 ? "完成教學：產生手機 AR 配對 QR Code" : "下一頁";
+}
+
+window.prevTutorialPage = function() { if (currentTutorialIndex > 0) { currentTutorialIndex--; renderTutorialPage(); } }
+
+window.nextTutorialPage = function() {
+    if (currentTutorialIndex < tutorialPages.length - 1) {
+        currentTutorialIndex++;
+        renderTutorialPage();
+    } else {
+        showARPairingScreen();
+    }
+}
+
+function showARPairingScreen() {
+    goToScreen('screen-ar-pairing');
+    const baseUrl = window.location.origin + window.location.pathname;
+    const pairingUrl = `${baseUrl}?session=${encodeURIComponent(sessionPrefix)}&participant=${encodeURIComponent(currentParticipantId)}&sessionId=${currentSessionId}&mode=ar`;
+
+    const qrContainer = document.getElementById('qrcode-container');
+    qrContainer.innerHTML = "";
+    new QRCode(qrContainer, {
+        text: pairingUrl,
+        width: 160,
+        height: 160,
+        colorDark: "#2c3e50",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
 }
 
 const preTestQuestionsList = [
@@ -686,7 +613,6 @@ function submitAllPreTestAnswers() {
         const isCorrect = ansData.selectedAnswer === q.correctAnswer;
         if (isCorrect) { correctCount++; score += 20; }
         else { wrongItems.push({ displayNum: index + 1, question: q.question, selectedAnswer: ansData.selectedAnswer || "未作答", correctAnswer: q.correctAnswer }); }
-
         answersObj[q.questionId] = { selectedAnswer: ansData.selectedAnswer, correctAnswer: q.correctAnswer, isCorrect: isCorrect, modifyCount: ansData.modifyCount };
     });
 
