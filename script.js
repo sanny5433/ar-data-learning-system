@@ -17,14 +17,15 @@ function goToScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => screen.classList.remove('active'));
     
-    ['1', '2', '3', 'mobile'].forEach(i => {
-        const sceneEl = document.getElementById(i === 'mobile' ? 'ar-scene-mobile' : `ar-scene-${i}`);
+    // 如果離開手機 AR 畫面，安全停止 MindAR 鏡頭
+    if (screenId !== 'screen-mobile-ar') {
+        const sceneEl = document.getElementById('ar-scene-mobile');
         if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
             try {
                 sceneEl.systems["mindar-image-system"].stop();
             } catch (e) {}
         }
-    });
+    }
 
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) targetScreen.classList.add('active');
@@ -85,6 +86,9 @@ window.addEventListener('DOMContentLoaded', () => {
             }, 400);
         }
     }
+
+    // 初始化手機 AR 實體卡片目標監聽器
+    initMobileTargetListeners();
 });
 
 window.startSession = async function() {
@@ -132,109 +136,109 @@ window.startSession = async function() {
 }
 
 /* ======================================================
-   【手機 WebAR 相機啟動與顯示】
-   這裡的 <a-scene> 結構、mindar-image 參數設定、autoStart、
-   arReady / arError 監聽方式，完全比照已驗證成功的
-   webAR-test.html，不另外加任何猜測性的補強邏輯。
-
-   唯一差異：因為正式系統有很多畫面共用同一頁，
-   <a-scene> 必須等使用者「真的進入 AR 畫面」才建立，
-   否則使用者還在首頁時瀏覽器就會提前跳出相機權限請求。
+   【手機 WebAR 相機啟動與 AR 監聽】
    ====================================================== */
 
-const mobileARSceneTemplate = `
-<a-scene id="ar-scene-mobile" mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: yes; uiError: yes; uiScanning: yes;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    <a-entity mindar-image-target="targetIndex: 0" id="mob-target-1-0"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 1" id="mob-target-1-1"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 2" id="mob-target-1-2"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 3" id="mob-target-1-3"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 4" id="mob-target-1-4"><a-plane color="#0984e3" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T1-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+let arListenersInitialized = false;
 
-    <a-entity mindar-image-target="targetIndex: 5" id="mob-target-2-0"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 6" id="mob-target-2-1"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 7" id="mob-target-2-2"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 8" id="mob-target-2-3"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 9" id="mob-target-2-4"><a-plane color="#e17055" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T2-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
+function initMobileTargetListeners() {
+    if (arListenersInitialized) return;
+    arListenersInitialized = true;
 
-    <a-entity mindar-image-target="targetIndex: 10" id="mob-target-3-0"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card01" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 11" id="mob-target-3-1"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card02" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 12" id="mob-target-3-2"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card03" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 13" id="mob-target-3-3"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card04" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-    <a-entity mindar-image-target="targetIndex: 14" id="mob-target-3-4"><a-plane color="#00b894" opacity="0.8" position="0 0 0" height="0.8" width="1"></a-plane><a-text value="T3-Card05" color="white" align="center" position="0 0 0.1"></a-text></a-entity>
-</a-scene>
-`;
-
-let mobileARSceneReady = false;
-
-function attachMobileTargetListeners() {
     for (let i = 0; i < 15; i++) {
         const mobEl = document.getElementById(`mob-target-${Math.floor(i/5)+1}-${i%5}`);
         const taskId = i < 5 ? 'task1' : (i < 10 ? 'task2' : 'task3');
         const cardId = `${taskId.toUpperCase()}-Card0${(i%5)+1}`;
 
-        if (mobEl && !mobEl.dataset.listenerAttached) {
-            mobEl.dataset.listenerAttached = "true";
+        if (mobEl) {
             mobEl.addEventListener("targetFound", () => {
                 scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
-                document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
+                const statusEl = document.getElementById('mobile-scan-status');
+                if (statusEl) {
+                    statusEl.innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
+                }
             });
         }
     }
-}
-
-// 進入手機 AR 畫面時，只會建立一次 a-scene（跟 webAR-test.html 的靜態寫法效果一致，
-// 只是延後到「使用者真的進入這個畫面」才建立，避免整個網站一載入就要求相機權限）
-function ensureMobileARScene() {
-    if (mobileARSceneReady) return;
-    const wrapper = document.getElementById('mobile-ar-wrapper');
-    if (!wrapper) return;
-
-    wrapper.innerHTML = mobileARSceneTemplate;
-    mobileARSceneReady = true;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
-    if (!sceneEl) return;
+    if (sceneEl) {
+        sceneEl.addEventListener('arReady', () => {
+            const statusEl = document.getElementById('mobile-scan-status');
+            const triggerBox = document.getElementById('camera-trigger-box');
+            if (statusEl) statusEl.innerHTML = `📸 相機已啟動 (AR_READY)，請將鏡頭對準實體卡片`;
+            if (triggerBox) triggerBox.style.display = 'none';
+        });
 
-    sceneEl.addEventListener('loaded', attachMobileTargetListeners);
-
-    // 以下兩個事件監聽方式，與 webAR-test.html 完全相同
-    sceneEl.addEventListener('arReady', () => {
-        document.getElementById('mobile-scan-status').innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
-        document.getElementById('camera-trigger-box').style.display = 'none';
-    });
-
-    sceneEl.addEventListener('arError', () => {
-        document.getElementById('mobile-scan-status').innerHTML = `⚠️ 相機啟動失敗，請點擊下方按鈕重試`;
-        document.getElementById('camera-trigger-box').style.display = 'block';
-    });
+        sceneEl.addEventListener('arError', () => {
+            const statusEl = document.getElementById('mobile-scan-status');
+            const triggerBox = document.getElementById('camera-trigger-box');
+            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗 (arError)，請點擊下方按鈕重試`;
+            if (triggerBox) triggerBox.style.display = 'block';
+        });
+    }
 }
 
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
-    document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
-    ensureMobileARScene();
+    const badge = document.getElementById('mobile-task-badge');
+    const statusEl = document.getElementById('mobile-scan-status');
+    const triggerBox = document.getElementById('camera-trigger-box');
+
+    if (badge) badge.innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
+    if (statusEl) statusEl.innerHTML = `🔄 正在初始化相機，請允許相機權限...`;
+    if (triggerBox) triggerBox.style.display = 'none';
+
+    // 確保 DOM 畫面完全切換並完成 Layout Reflow 後，才啟動 MindAR
+    setTimeout(() => {
+        const sceneEl = document.getElementById('ar-scene-mobile');
+        if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+            try {
+                sceneEl.systems["mindar-image-system"].stop();
+            } catch (e) {}
+
+            try {
+                sceneEl.systems["mindar-image-system"].start();
+            } catch (err) {
+                if (statusEl) statusEl.innerHTML = `❌ 啟動失敗: ${err.message}`;
+                if (triggerBox) triggerBox.style.display = 'block';
+            }
+        } else {
+            if (statusEl) statusEl.innerHTML = `❌ A-Frame 或 MindAR 尚未載入`;
+            if (triggerBox) triggerBox.style.display = 'block';
+        }
+    }, 250);
 }
 
-// 重試按鈕：只有在 arError 發生時才會顯示出來
 window.forceStartMobileCamera = function() {
     const sceneEl = document.getElementById('ar-scene-mobile');
-    if (!sceneEl || !sceneEl.systems || !sceneEl.systems["mindar-image-system"]) return;
+    const statusEl = document.getElementById('mobile-scan-status');
+    const triggerBox = document.getElementById('camera-trigger-box');
 
-    document.getElementById('mobile-scan-status').innerHTML = `🔄 正在重新啟動相機，請稍候...`;
-    document.getElementById('camera-trigger-box').style.display = 'none';
+    if (statusEl) statusEl.innerHTML = `🔄 正在重新啟動相機...`;
+    if (triggerBox) triggerBox.style.display = 'none';
 
-    try {
-        sceneEl.systems["mindar-image-system"].stop();
-    } catch (e) {}
-    sceneEl.systems["mindar-image-system"].start();
+    if (sceneEl && sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
+        try {
+            sceneEl.systems["mindar-image-system"].stop();
+        } catch (e) {}
+
+        setTimeout(() => {
+            try {
+                sceneEl.systems["mindar-image-system"].start();
+            } catch (err) {
+                if (statusEl) statusEl.innerHTML = `❌ 重試失敗: ${err.message}`;
+                if (triggerBox) triggerBox.style.display = 'block';
+            }
+        }, 150);
+    }
 }
 
 window.switchMobileTask = function(taskNum) {
     startMobileAR(taskNum);
 }
 
-// 【深度擴充版：教科書級別完整 10 頁詳細基礎教學】
+// 【教科書級別完整 10 頁詳細基礎教學】
 const tutorialPages = [
     {
         title: "1. 什麼是關聯規則（Association Rules）？",
