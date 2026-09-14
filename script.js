@@ -132,11 +132,14 @@ window.startSession = async function() {
 }
 
 /* ======================================================
-   【手機 WebAR 相機啟動與顯示】相關程式碼
-   這次調整：版本改用 A-Frame 1.4.0 + MindAR 1.2.5（與你測試成功的
-   webAR-test.html 相同版本），並改用 autoStart:true，
-   讓相機在 AR 畫面顯示後「自動」啟動，不再需要先手動點擊按鈕。
-   按鈕保留，但只在自動啟動失敗時才會出現，作為「重試」用途。
+   【手機 WebAR 相機啟動與顯示】
+   這裡的 <a-scene> 結構、mindar-image 參數設定、autoStart、
+   arReady / arError 監聽方式，完全比照已驗證成功的
+   webAR-test.html，不另外加任何猜測性的補強邏輯。
+
+   唯一差異：因為正式系統有很多畫面共用同一頁，
+   <a-scene> 必須等使用者「真的進入 AR 畫面」才建立，
+   否則使用者還在首頁時瀏覽器就會提前跳出相機權限請求。
    ====================================================== */
 
 const mobileARSceneTemplate = `
@@ -163,8 +166,6 @@ const mobileARSceneTemplate = `
 `;
 
 let mobileARSceneReady = false;
-let mobileARReadyFired = false;
-let mobileARStartTimeoutId = null;
 
 function attachMobileTargetListeners() {
     for (let i = 0; i < 15; i++) {
@@ -175,8 +176,6 @@ function attachMobileTargetListeners() {
         if (mobEl && !mobEl.dataset.listenerAttached) {
             mobEl.dataset.listenerAttached = "true";
             mobEl.addEventListener("targetFound", () => {
-                mobileARReadyFired = true;
-                clearTimeout(mobileARStartTimeoutId);
                 scanARCard(taskId, cardId, `偵測到 ${cardId}！`);
                 document.getElementById('mobile-scan-status').innerHTML = `✅ 成功掃描並記錄：<strong>${cardId}</strong>`;
             });
@@ -184,121 +183,51 @@ function attachMobileTargetListeners() {
     }
 }
 
+// 進入手機 AR 畫面時，只會建立一次 a-scene（跟 webAR-test.html 的靜態寫法效果一致，
+// 只是延後到「使用者真的進入這個畫面」才建立，避免整個網站一載入就要求相機權限）
 function ensureMobileARScene() {
     if (mobileARSceneReady) return;
     const wrapper = document.getElementById('mobile-ar-wrapper');
     if (!wrapper) return;
 
-    // 這時候 #screen-mobile-ar 已經是可見狀態，才把 a-scene 插入 DOM，
-    // 避免在隱藏容器裡初始化導致相機畫面尺寸算錯。
     wrapper.innerHTML = mobileARSceneTemplate;
     mobileARSceneReady = true;
 
     const sceneEl = document.getElementById('ar-scene-mobile');
     if (!sceneEl) return;
 
-    const statusEl = document.getElementById('mobile-scan-status');
-    const triggerBox = document.getElementById('camera-trigger-box');
+    sceneEl.addEventListener('loaded', attachMobileTargetListeners);
 
-    if (statusEl) statusEl.innerHTML = `📸 正在啟動相機，請稍候...`;
-    if (triggerBox) triggerBox.style.display = 'none';
-
-    const onLoaded = () => {
-        attachMobileTargetListeners();
-        if (typeof sceneEl.resize === 'function') {
-            try { sceneEl.resize(); } catch (e) {}
-        }
-    };
-    if (sceneEl.hasLoaded) {
-        onLoaded();
-    } else {
-        sceneEl.addEventListener('loaded', onLoaded);
-    }
-
-    // MindAR 真正啟動成功（相機畫面真的出現）時會觸發 arReady
+    // 以下兩個事件監聽方式，與 webAR-test.html 完全相同
     sceneEl.addEventListener('arReady', () => {
-        mobileARReadyFired = true;
-        clearTimeout(mobileARStartTimeoutId);
-        if (statusEl) statusEl.innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
-        if (triggerBox) triggerBox.style.display = 'none';
-        if (typeof sceneEl.resize === 'function') {
-            try { sceneEl.resize(); } catch (e) {}
-        }
+        document.getElementById('mobile-scan-status').innerHTML = `📸 相機已啟動，請將鏡頭對準實體卡片`;
+        document.getElementById('camera-trigger-box').style.display = 'none';
     });
 
-    // MindAR 啟動失敗時會觸發 arError，把真正原因顯示出來
-    sceneEl.addEventListener('arError', (evt) => {
-        clearTimeout(mobileARStartTimeoutId);
-        const detail = (evt && evt.detail) ? JSON.stringify(evt.detail) : '未知錯誤';
-        if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗（arError）：${detail}`;
-        if (triggerBox) triggerBox.style.display = 'block';
+    sceneEl.addEventListener('arError', () => {
+        document.getElementById('mobile-scan-status').innerHTML = `⚠️ 相機啟動失敗，請點擊下方按鈕重試`;
+        document.getElementById('camera-trigger-box').style.display = 'block';
     });
-
-    // autoStart:true 會自動嘗試啟動相機。
-    // 如果 8 秒內沒有收到 arReady（代表還沒真的顯示出畫面），才顯示重試按鈕。
-    mobileARReadyFired = false;
-    clearTimeout(mobileARStartTimeoutId);
-    mobileARStartTimeoutId = setTimeout(() => {
-        if (!mobileARReadyFired) {
-            if (statusEl) statusEl.innerHTML = `⚠️ 相機尚未啟動成功，請點擊下方按鈕重試一次`;
-            if (triggerBox) triggerBox.style.display = 'block';
-        }
-    }, 8000);
 }
 
 window.startMobileAR = function(taskNum) {
     goToScreen('screen-mobile-ar');
     document.getElementById('mobile-task-badge').innerText = `📱 手機專屬 AR 掃描器 (Task ${taskNum})`;
-
-    // 等畫面真正切換為可見狀態之後，再建立 a-scene（只會在第一次進入時真正插入）
-    setTimeout(ensureMobileARScene, 100);
+    ensureMobileARScene();
 }
 
-// 相機重試按鈕（只在自動啟動失敗、arError 或逾時才會顯示出來）
+// 重試按鈕：只有在 arError 發生時才會顯示出來
 window.forceStartMobileCamera = function() {
-    const triggerBox = document.getElementById('camera-trigger-box');
-    const statusEl = document.getElementById('mobile-scan-status');
     const sceneEl = document.getElementById('ar-scene-mobile');
+    if (!sceneEl || !sceneEl.systems || !sceneEl.systems["mindar-image-system"]) return;
 
-    if (!sceneEl) {
-        ensureMobileARScene();
-        return;
-    }
+    document.getElementById('mobile-scan-status').innerHTML = `🔄 正在重新啟動相機，請稍候...`;
+    document.getElementById('camera-trigger-box').style.display = 'none';
 
-    if (statusEl) statusEl.innerHTML = `🔄 正在重新啟動相機，請稍候...`;
-    if (triggerBox) triggerBox.style.display = 'none';
-
-    function tryStart() {
-        try {
-            if (!sceneEl.systems || !sceneEl.systems["mindar-image-system"]) {
-                if (statusEl) statusEl.innerHTML = `⚠️ 相機系統尚未準備完成，請稍等一下再點一次按鈕`;
-                if (triggerBox) triggerBox.style.display = 'block';
-                return;
-            }
-
-            try { sceneEl.systems["mindar-image-system"].stop(); } catch (e) {}
-            sceneEl.systems["mindar-image-system"].start();
-
-            mobileARReadyFired = false;
-            clearTimeout(mobileARStartTimeoutId);
-            mobileARStartTimeoutId = setTimeout(() => {
-                if (!mobileARReadyFired) {
-                    if (statusEl) statusEl.innerHTML = `⚠️ 相機仍未啟動成功。請確認瀏覽器相機權限已允許，或改用 Chrome 瀏覽器再試一次。`;
-                    if (triggerBox) triggerBox.style.display = 'block';
-                }
-            }, 8000);
-        } catch (e) {
-            const msg = (e && e.message) ? e.message : String(e);
-            if (statusEl) statusEl.innerHTML = `⚠️ 相機啟動失敗：${msg}`;
-            if (triggerBox) triggerBox.style.display = 'block';
-        }
-    }
-
-    if (sceneEl.hasLoaded) {
-        tryStart();
-    } else {
-        sceneEl.addEventListener('loaded', tryStart, { once: true });
-    }
+    try {
+        sceneEl.systems["mindar-image-system"].stop();
+    } catch (e) {}
+    sceneEl.systems["mindar-image-system"].start();
 }
 
 window.switchMobileTask = function(taskNum) {
