@@ -119,16 +119,16 @@
             <button class="primary-btn" onclick="startTask1()" style="margin-top: 5px; font-size: 12px; padding: 6px;">[電腦端測試] 直接在電腦檢視任務</button>
         </div>
 
-        <!-- 【手機專屬畫面】純 AR 掃描器 (相機動態建立，避免隱藏容器造成灰畫面) -->
+        <!-- 【手機專屬畫面】純 AR 掃描器 -->
         <div id="screen-mobile-ar" class="screen">
             <div class="progress-badge" id="mobile-task-badge" style="background-color: #27ae60;">📱 手機專屬 AR 掃描器</div>
             
             <div class="ar-container" id="mobile-ar-wrapper">
-                <!-- a-scene 會在這個畫面真正顯示之後，由 script.js 動態插入，
-                     避免在畫面還是 display:none 的狀態下就初始化相機，導致灰畫面 -->
+                <!-- a-scene 會在進入這個畫面之後，由 script.js 插入。
+                     結構與設定完全比照已驗證成功的 webAR-test.html -->
             </div>
 
-            <!-- 相機重試按鈕：預設隱藏，只有在相機自動啟動失敗時才會出現 -->
+            <!-- 相機重試按鈕：預設隱藏，只有在相機沒有成功啟動時才會出現 -->
             <div id="camera-trigger-box" style="margin-bottom: 10px; text-align: center; display: none;">
                 <button class="primary-btn" onclick="forceStartMobileCamera()" style="background-color: #e67e22; font-size: 14px; padding: 10px;">🔄 重新啟動相機</button>
             </div>
